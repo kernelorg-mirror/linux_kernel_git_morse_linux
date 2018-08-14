@@ -206,7 +206,7 @@ static int __init _parse_table(struct acpi_table_header *table)
 		if (err)
 			break;
 
-		props[next_prop++] = PROPERTY_ENTRY_U32("arm,max-nrdy-usec",
+		props[next_prop++] = PROPERTY_ENTRY_U32("arm,not-ready-us",
 							tbl_msc->max_nrdy_usec);
 
 		/*
