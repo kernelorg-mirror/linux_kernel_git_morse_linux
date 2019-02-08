@@ -28,10 +28,13 @@ struct mpam_device
 
 	/* The affinity learn't from firmware */
 	struct cpumask          fw_affinity;
+	/* of which these cpus are online */
+	struct cpumask          online_affinity;
 
 	spinlock_t              lock;
 	phys_addr_t             hwpage_address;
 	void __iomem *          mapped_hwpage;
+	bool			probed;
 
 	u32                     error_irq;
 	u32                     error_irq_flags;
