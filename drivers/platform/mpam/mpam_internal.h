@@ -107,6 +107,7 @@ struct mpam_component
 
 	struct cpumask          fw_affinity;
 
+
 	/* member of mpam_class:components */
 	struct list_head        class_list;
 };
@@ -131,6 +132,16 @@ struct mpam_class
 
 	u8			level;
 	enum mpam_class_types	type;
+
+	/* Once enabled, the common features */
+	mpam_features_t		features;
+
+	/* The common values if the feature is supported */
+	u16			cpbm_wd;
+	u16			mbw_pbm_bits;
+	u16			bwa_wd;
+	u16			num_csu_mon;
+	u16			num_mbwu_mon;
 
 	/* member of mpam_classes */
 	struct list_head        classes_list;
