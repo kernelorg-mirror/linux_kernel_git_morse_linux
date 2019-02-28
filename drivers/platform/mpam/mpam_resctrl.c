@@ -24,6 +24,12 @@
  */
 static struct mpam_resctrl_res mpam_resctrl_exports[RDT_NUM_RESOURCES];
 
+/*
+ * The mpam_resctrl_res in mpam_resctrl_exports that backs an event.
+ * Caches and memory-controller may have MBM events.
+ */
+static struct mpam_resctrl_res *mpam_resctrl_events[RESCTRL_NUM_EVENT_IDS];
+
 static bool exposed_alloc_capable;
 static bool exposed_mon_capable;
 
@@ -75,6 +81,70 @@ struct rdt_resource *mpam_resctrl_get_resource(enum resctrl_resource_level l)
 		return NULL;
 
 	return &mpam_resctrl_exports[l].resctrl_res;
+}
+
+bool mpam_resctrl_llc_occupancy_enabled(void)
+{
+	return (mpam_resctrl_events[QOS_L3_OCCUP_EVENT_ID] != NULL);
+}
+
+static void mpam_resctrl_pick_event_l3_occup(void)
+{
+	/*
+	 * as the name suggests, resctrl can only use this if your cache is
+	 * called 'l3'.
+	 */
+	struct mpam_resctrl_res *res = &mpam_resctrl_exports[RDT_RESOURCE_L3];
+	if (!res->class)
+		return;
+
+	if (!mpam_has_feature(mpam_feat_msmon_csu, res->class->features))
+		return;
+
+	mpam_resctrl_events[QOS_L3_OCCUP_EVENT_ID] = res;
+
+	exposed_mon_capable = true;
+	res->resctrl_res.mon_capable = true;
+}
+
+/*
+ * Resctrl expects pmg to exceed partids, and to be able to read an 'rmid' at
+ * any time.
+ * The MSCs have 'msmon' counters which count partid+pmg, which means our pmg
+ * bits are an extention of the partid, but we need one msmon per rmid to give
+ * resctrl its 'at any time' behaviour. How many rmid we have is already a sore
+ * point.
+ *
+ * This means we don't support MBM_* as we anticipate there will be fewer msmon
+ * than there are partids. We need at least 1:1 to support 0 pmg bits.
+ *
+ * This function tries to detect platforms that could support MBM_*.
+ * For platforms that can't, the msmon counters could be managed by perf.
+ * TODO: allow perf to read MBM_* for 'num_msmon' rdtgroups
+ * TODO: which LOCAL/TOTAL we can use depends on topology information we
+ * don't have.
+ * TODO: resctrl only supports monitors on L3...
+ */
+static void mpam_resctrl_pick_event_mbm_foo(void)
+{
+	int i;
+	struct mpam_resctrl_res *res;
+	u64 num_counters = mpam_resctrl_num_closid();
+
+	for (i = 0; i < RDT_NUM_RESOURCES; i++) {
+		res = &mpam_resctrl_exports[i];
+		if (!res->class)
+			continue;
+
+		if (!mpam_has_feature(mpam_feat_msmon_mbwu, res->class->features))
+			continue;
+
+		if (res->class->num_mbwu_mon < num_counters)
+			continue;
+
+		pr_info_once("Platform may have candidate class for unsupported event: MBM_TOTAL!");
+		break;
+	}
 }
 
 /* Find what we can can export as MBA */
@@ -288,6 +358,9 @@ int mpam_resctrl_setup(void)
 
 	mpam_resctrl_pick_caches();
 	mpam_resctrl_pick_mba();
+
+	mpam_resctrl_pick_event_l3_occup();
+	mpam_resctrl_pick_event_mbm_foo();
 
 	for (i = 0; i < RDT_NUM_RESOURCES; i++) {
 		res = &mpam_resctrl_exports[i];
