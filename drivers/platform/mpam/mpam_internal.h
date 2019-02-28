@@ -4,6 +4,7 @@
 #ifndef MPAM_INTERNAL_H
 #define MPAM_INTERNAL_H
 
+#include <linux/atomic.h>
 #include <linux/cpumask.h>
 #include <linux/io.h>
 #include <linux/mutex.h>
@@ -21,6 +22,8 @@ struct mpam_msc
 	/* Not modified after mpam_is_enabled() becomes true */
 	u32			nrdy_usec;
 	cpumask_t		accessibility;
+
+	atomic_t		online_refs;
 
 	spinlock_t		lock;
 	bool			probed;
@@ -132,6 +135,7 @@ struct mpam_msc_ris
 	u8			ris_idx;
 	u64			idr;
 	struct mpam_props	props;
+	bool			in_reset_state;
 
 	cpumask_t		affinity;
 
