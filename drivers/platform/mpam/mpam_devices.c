@@ -2170,7 +2170,7 @@ static void mpam_enable_once(void)
 		mpam_pmg_max + 1);
 }
 
-static void mpam_reset_class(struct mpam_class *class)
+void mpam_reset_class(struct mpam_class *class)
 {
 	int idx;
 	struct mpam_msc_ris *ris;
