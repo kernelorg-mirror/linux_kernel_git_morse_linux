@@ -5,6 +5,7 @@
 #define MPAM_INTERNAL_H
 
 #include <linux/cpumask.h>
+#include <linux/idr.h>
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <linux/resctrl.h>
@@ -202,6 +203,10 @@ struct mpam_class
 	u16			num_csu_mon;
 	u16			num_mbwu_mon;
 
+	struct mutex		lock;
+	struct ida		ida_csu_mon;
+	struct ida		ida_mbwu_mon;
+
 	/* member of mpam_classes */
 	struct list_head        classes_list;
 };
@@ -260,6 +265,28 @@ struct mon_cfg {
 };
 
 int mpam_device_csu_read(struct mpam_device *dev, struct mon_cfg *ctx, u64 *val);
+
+static inline int mpam_alloc_csu_mon(struct mpam_class *class)
+{
+	int mon_id;
+
+	if (!mpam_has_feature(mpam_feat_msmon_csu, class->features))
+		return -EIO;
+
+	mutex_lock(&class->lock);
+	mon_id = ida_alloc_range(&class->ida_csu_mon, 0, class->num_csu_mon,
+				 GFP_KERNEL);
+	mutex_unlock(&class->lock);
+
+	return mon_id;
+}
+
+static inline void mpam_free_csu_mon(struct mpam_class *class, u8 csu_mon)
+{
+	mutex_lock(&class->lock);
+	ida_free(&class->ida_csu_mon, csu_mon);
+	mutex_unlock(&class->lock);
+}
 
 int mpam_resctrl_cpu_online(unsigned int cpu);
 int mpam_resctrl_cpu_offline(unsigned int cpu);
