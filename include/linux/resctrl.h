@@ -156,5 +156,7 @@ struct rdt_resource {
 };
 
 int resctrl_arch_update_domains(struct rdt_resource *r);
+void resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
+			     u32 closid, u32 *value);
 
 #endif /* _RESCTRL_H */
