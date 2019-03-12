@@ -1162,8 +1162,10 @@ out:
 static bool __rdtgroup_cbm_overlaps(struct rdt_resource *r, struct rdt_domain *d,
 				    unsigned long cbm, int closid, bool exclusive)
 {
+	enum resctrl_conf_type t = resctrl_to_arch_res(r)->conf_type;
 	enum rdtgrp_mode mode;
 	unsigned long ctrl_b;
+	u32 hw_closid_iter;
 	int i;
 
 	/* Check for any overlap with regions used by hardware directly */
@@ -1175,7 +1177,9 @@ static bool __rdtgroup_cbm_overlaps(struct rdt_resource *r, struct rdt_domain *d
 
 	/* Check for overlap with other resource groups */
 	for (i = 0; i < closids_supported(); i++) {
-		resctrl_arch_get_config(r, d, i, (u32 *)&ctrl_b);
+		hw_closid_iter = resctrl_closid_cdp_map(i, t);
+		resctrl_arch_get_config(r, d, hw_closid_iter, (u32 *)&ctrl_b);
+
 		mode = rdtgroup_mode_by_closid(i);
 		if (closid_allocated(i) && i != closid &&
 		    mode != RDT_MODE_PSEUDO_LOCKSETUP) {
@@ -1243,17 +1247,22 @@ bool rdtgroup_cbm_overlaps(struct rdt_resource *r, struct rdt_domain *d,
 static bool rdtgroup_mode_test_exclusive(struct rdtgroup *rdtgrp)
 {
 	int closid = rdtgrp->closid;
+	enum resctrl_conf_type t;
 	struct rdt_resource *r;
 	bool has_cache = false;
 	struct rdt_domain *d;
-	u32 ctrl;
+	u32 ctrl, hw_closid;
 
 	for_each_alloc_enabled_rdt_resource(r) {
 		if (r->rid == RDT_RESOURCE_MBA)
 			continue;
 		has_cache = true;
+
+		t = resctrl_to_arch_res(r)->conf_type;
+		hw_closid = resctrl_closid_cdp_map(closid, t);
+
 		list_for_each_entry(d, &r->domains, list) {
-			resctrl_arch_get_config(r, d, closid, &ctrl);
+			resctrl_arch_get_config(r, d, hw_closid, &ctrl);
 			if (rdtgroup_cbm_overlaps(r, d, ctrl, closid, false)) {
 				rdt_last_cmd_puts("Schemata overlaps\n");
 				return false;
@@ -1388,10 +1397,10 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 	struct rdtgroup *rdtgrp;
 	struct rdt_resource *r;
 	struct rdt_domain *d;
+	u32 ctrl, hw_closid;
 	unsigned int size;
 	int ret = 0;
 	bool sep;
-	u32 ctrl;
 
 	rdtgrp = rdtgroup_kn_lock_live(of->kn);
 	if (!rdtgrp) {
@@ -1417,6 +1426,8 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 
 	for_each_alloc_enabled_rdt_resource(r) {
 		sep = false;
+		hw_closid = resctrl_closid_cdp_map(rdtgrp->closid,
+						   resctrl_to_arch_res(r)->conf_type);
 		seq_printf(s, "%*s:", max_name_width, r->name);
 		list_for_each_entry(d, &r->domains, list) {
 			if (sep)
@@ -1424,7 +1435,7 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 			if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP) {
 				size = 0;
 			} else {
-				resctrl_arch_get_config(r, d, rdtgrp->closid,
+				resctrl_arch_get_config(r, d, hw_closid,
 							&ctrl);
 				if (r->rid == RDT_RESOURCE_MBA)
 					size = ctrl;
@@ -2271,11 +2282,7 @@ static int reset_all_ctrls(struct rdt_resource *r)
 
 	msr_param.res = r;
 	msr_param.low = 0;
-	/*
-	 * temporary: cat_wrmsr() and friends apply a correction to convert
-	 * this value to hw_res->hw_num_closid.
-	 */
-	msr_param.high = r->num_closid;
+	msr_param.high = hw_res->hw_num_closid;
 
 	/*
 	 * Disable resource control for this resource by setting all
@@ -2663,16 +2670,23 @@ static u32 cbm_ensure_valid(u32 _val, struct rdt_resource *r)
 static int __init_one_rdt_domain(struct rdt_domain *d, struct rdt_resource *r,
 				 u32 closid)
 {
+	enum resctrl_conf_type t = resctrl_to_arch_res(r)->conf_type;
+	enum resctrl_conf_type t_peer = CDP_BOTH;
+	u32 peer_ctl, ctrl_val, hw_closid_iter;
 	struct rdt_resource *r_cdp = NULL;
 	struct resctrl_staged_config *cfg;
 	struct rdt_domain *d_cdp = NULL;
 	u32 used_b = 0, unused_b = 0;
 	unsigned long tmp_cbm;
 	enum rdtgrp_mode mode;
-	u32 peer_ctl, ctrl_val;
 	int i;
 
 	rdt_cdp_peer_get(r, d, &r_cdp, &d_cdp);
+	if (t == CDP_CODE)
+		t_peer = CDP_DATA;
+	else if (t == CDP_DATA)
+		t_peer = CDP_CODE;
+
 	cfg = &d->staged_config[0];
 	cfg->have_new_ctrl = false;
 	cfg->new_ctrl = r->cache.shareable_bits;
@@ -2692,11 +2706,15 @@ static int __init_one_rdt_domain(struct rdt_domain *d, struct rdt_resource *r,
 			 * usage to ensure there is no overlap
 			 * with an exclusive group.
 			 */
-			if (d_cdp)
-				resctrl_arch_get_config(r_cdp, d_cdp, i, &peer_ctl);
-			else
+			if (d_cdp) {
+				hw_closid_iter = resctrl_closid_cdp_map(i, t_peer);
+				resctrl_arch_get_config(r, d, hw_closid_iter,
+							&peer_ctl);
+			} else {
 				peer_ctl = 0;
-			resctrl_arch_get_config(r, d, i, &ctrl_val);
+			}
+			hw_closid_iter = resctrl_closid_cdp_map(i, t);
+			resctrl_arch_get_config(r, d, hw_closid_iter, &ctrl_val);
 			used_b |= ctrl_val | peer_ctl;
 			if (mode == RDT_MODE_SHAREABLE)
 				cfg->new_ctrl |= ctrl_val | peer_ctl;
@@ -2721,7 +2739,7 @@ static int __init_one_rdt_domain(struct rdt_domain *d, struct rdt_resource *r,
 		rdt_last_cmd_printf("No space on %s:%d\n", r->name, d->id);
 		return -ENOSPC;
 	}
-	cfg->closid = closid;
+	cfg->hw_closid = resctrl_closid_cdp_map(closid, t);
 	cfg->have_new_ctrl = true;
 
 	return 0;
@@ -2760,7 +2778,7 @@ static void rdtgroup_init_mba(struct rdt_resource *r, u32 closid)
 	list_for_each_entry(d, &r->domains, list) {
 		cfg = &d->staged_config[0];
 		cfg->new_ctrl = is_mba_sc(r) ? MBA_MAX_MBPS : r->default_ctrl;
-		cfg->closid = closid;
+		cfg->hw_closid = resctrl_closid_cdp_map(closid, CDP_BOTH);
 		cfg->have_new_ctrl = true;
 	}
 }
