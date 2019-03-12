@@ -15,6 +15,10 @@ int proc_resctrl_show(struct seq_file *m,
 
 #endif
 
+typedef struct { u32 val; } hw_closid_t;
+#define as_hwclosid_t(x)	((hw_closid_t){(x)})
+#define hwclosid_val(x)		(x.val)
+
 enum resctrl_conf_type {
 	CDP_BOTH = 0,
 	CDP_CODE,
@@ -29,7 +33,7 @@ enum resctrl_conf_type {
  * @new_ctrl_type:	CDP property of the new ctrl
  */
 struct resctrl_staged_config {
-	u32			hw_closid;
+	hw_closid_t		hw_closid;
 	u32			new_ctrl;
 	bool			have_new_ctrl;
 	enum resctrl_conf_type  new_ctrl_type;
@@ -166,7 +170,7 @@ struct rdt_resource {
 
 int resctrl_arch_update_domains(struct rdt_resource *r);
 void resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
-			     u32 closid, u32 *value);
+			     hw_closid_t hw_closid, u32 *value);
 
 /* Enable/Disable CDP on all applicable resources */
 int resctrl_arch_set_cdp_enabled(bool enable);
