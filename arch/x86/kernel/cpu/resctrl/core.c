@@ -76,7 +76,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_BOTH,
 		.msr_base		= MSR_IA32_L3_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -94,7 +93,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_DATA,
 		.msr_base		= MSR_IA32_L3_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -112,7 +110,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_CODE,
 		.msr_base		= MSR_IA32_L3_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -130,7 +127,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_BOTH,
 		.msr_base		= MSR_IA32_L2_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -148,7 +144,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_DATA,
 		.msr_base		= MSR_IA32_L2_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -166,7 +161,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
 		},
-		.conf_type		= CDP_CODE,
 		.msr_base		= MSR_IA32_L2_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
@@ -330,39 +324,6 @@ static void rdt_get_cache_alloc_cfg(int idx, struct rdt_resource *r)
 	r->data_width = (r->cache.cbm_len + 3) / 4;
 	r->alloc_capable = true;
 	r->alloc_enabled = true;
-}
-
-static void rdt_get_cdp_config(int level, int type)
-{
-	struct rdt_resource *r_l = &rdt_resources_all[level].resctrl;
-	struct rdt_hw_resource *hw_res = &rdt_resources_all[type];
-	struct rdt_resource *r = &hw_res->resctrl;
-
-	r->num_closid = r_l->num_closid / 2;
-	hw_res->hw_num_closid = r_l->num_closid;
-	r->cache.cbm_len = r_l->cache.cbm_len;
-	r->default_ctrl = r_l->default_ctrl;
-	r->cache.shareable_bits = r_l->cache.shareable_bits;
-	r->data_width = (r->cache.cbm_len + 3) / 4;
-	r->alloc_capable = true;
-	/*
-	 * By default, CDP is disabled. CDP can be enabled by mount parameter
-	 * "cdp" during resctrl file system mount time.
-	 */
-	r_l->cdp_capable = true;
-	r->alloc_enabled = false;
-}
-
-static void rdt_get_cdp_l3_config(void)
-{
-	rdt_get_cdp_config(RDT_RESOURCE_L3, RDT_RESOURCE_L3DATA);
-	rdt_get_cdp_config(RDT_RESOURCE_L3, RDT_RESOURCE_L3CODE);
-}
-
-static void rdt_get_cdp_l2_config(void)
-{
-	rdt_get_cdp_config(RDT_RESOURCE_L2, RDT_RESOURCE_L2DATA);
-	rdt_get_cdp_config(RDT_RESOURCE_L2, RDT_RESOURCE_L2CODE);
 }
 
 static void
@@ -868,6 +829,8 @@ static __init bool get_mem_config(void)
 static __init bool get_rdt_alloc_resources(void)
 {
 	bool ret = false;
+	struct rdt_hw_resource *l2 = &rdt_resources_all[RDT_RESOURCE_L2];
+	struct rdt_hw_resource *l3 = &rdt_resources_all[RDT_RESOURCE_L3];
 
 	if (rdt_alloc_capable)
 		return true;
@@ -876,16 +839,16 @@ static __init bool get_rdt_alloc_resources(void)
 		return false;
 
 	if (rdt_cpu_has(X86_FEATURE_CAT_L3)) {
-		rdt_get_cache_alloc_cfg(1, &rdt_resources_all[RDT_RESOURCE_L3].resctrl);
+		rdt_get_cache_alloc_cfg(1, &l3->resctrl);
 		if (rdt_cpu_has(X86_FEATURE_CDP_L3))
-			rdt_get_cdp_l3_config();
+			l3->resctrl.cdp_capable = true;
 		ret = true;
 	}
 	if (rdt_cpu_has(X86_FEATURE_CAT_L2)) {
 		/* CPUID 0x10.2 fields are same format at 0x10.1 */
-		rdt_get_cache_alloc_cfg(2, &rdt_resources_all[RDT_RESOURCE_L2].resctrl);
+		rdt_get_cache_alloc_cfg(2, &l2->resctrl);
 		if (rdt_cpu_has(X86_FEATURE_CDP_L2))
-			rdt_get_cdp_l2_config();
+			l2->resctrl.cdp_capable = true;
 		ret = true;
 	}
 
