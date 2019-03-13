@@ -115,6 +115,7 @@ struct resctrl_membw {
 };
 
 struct rdt_parse_data;
+struct resctrl_schema;
 
 /**
  * @rid:		The index of the resource
@@ -162,7 +163,7 @@ struct rdt_resource {
 	u32			default_ctrl;
 	const char		*format_str;
 	int			(*parse_ctrlval)(struct rdt_parse_data *data,
-						 struct rdt_resource *r,
+						 struct resctrl_schema *s,
 						 struct rdt_domain *d);
 	struct list_head	evt_list;
 	unsigned long		fflags;
@@ -171,7 +172,7 @@ struct rdt_resource {
 
 /**
  * @list:	Member of resctrl's schema list
- * @cdp_type:	Whether this entry is for code/data/both
+ * @conf_type:	Type of configuration, e.g. code/data/both
  * @res:	The rdt_resource for this entry
  * @num_closid	Number of CLOSIDs available for this resource
  */
