@@ -15,6 +15,7 @@
  * Software Developer Manual June 2016, volume 3, section 17.17.
  */
 
+#include <linux/cpu.h>
 #include <linux/module.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
@@ -472,6 +473,9 @@ static void add_rmid_to_limbo(struct rmid_entry *entry)
 
 	lockdep_assert_held(&rdtgroup_mutex);
 
+	/* Walking r->domains, ensure it can't race with cpuhp */
+	lockdep_assert_cpus_held();
+
 	idx = resctrl_arch_rmid_idx_encode(entry->closid, entry->rmid);
 
 	entry->busy = 0;
@@ -801,6 +805,7 @@ void cqm_handle_limbo(struct work_struct *work)
 	struct rdt_resource *r;
 	struct rdt_domain *d;
 
+	cpus_read_lock();
 	mutex_lock(&rdtgroup_mutex);
 
 	r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
@@ -816,6 +821,7 @@ void cqm_handle_limbo(struct work_struct *work)
 	}
 
 	mutex_unlock(&rdtgroup_mutex);
+	cpus_read_unlock();
 }
 
 /**
@@ -847,6 +853,7 @@ void mbm_handle_overflow(struct work_struct *work)
 	struct rdt_resource *r;
 	struct rdt_domain *d;
 
+	cpus_read_lock();
 	mutex_lock(&rdtgroup_mutex);
 
 	/*
@@ -880,6 +887,7 @@ void mbm_handle_overflow(struct work_struct *work)
 
 out_unlock:
 	mutex_unlock(&rdtgroup_mutex);
+	cpus_read_unlock();
 }
 
 /**
