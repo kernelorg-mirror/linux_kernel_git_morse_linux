@@ -16,6 +16,7 @@ typedef struct { u32 val; } hw_closid_t;
 
 #define RMID_VAL_ERROR			BIT_ULL(63)
 #define RMID_VAL_UNAVAIL		BIT_ULL(62)
+#define MBM_CNTR_WIDTH			24
 
 extern bool rdt_alloc_capable;
 extern bool rdt_mon_capable;
