@@ -8,6 +8,8 @@
 #include <linux/jump_label.h>
 #include <linux/sched.h>
 
+#include <asm/processor.h>
+
 typedef struct { u32 val; } hw_closid_t;
 #define as_hwclosid_t(x)	((hw_closid_t){(x)})
 #define hwclosid_val(x)		(x.val)
@@ -61,6 +63,11 @@ static inline void resctrl_arch_disable_mon(void)
 {
 	static_branch_disable_cpuslocked(&rdt_mon_enable_key);
 	static_branch_dec_cpuslocked(&rdt_enable_key);
+}
+
+static inline u32 resctrl_arch_max_rmid_threshold(void)
+{
+	return (boot_cpu_data.x86_cache_size * 1024);
 }
 
 #ifdef CONFIG_X86_CPU_RESCTRL
