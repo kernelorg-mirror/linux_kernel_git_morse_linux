@@ -12,6 +12,9 @@ typedef struct { u32 val; } hw_closid_t;
 #define as_hwclosid_t(x)	((hw_closid_t){(x)})
 #define hwclosid_val(x)		(x.val)
 
+#define RMID_VAL_ERROR			BIT_ULL(63)
+#define RMID_VAL_UNAVAIL		BIT_ULL(62)
+
 extern bool rdt_alloc_capable;
 extern bool rdt_mon_capable;
 
