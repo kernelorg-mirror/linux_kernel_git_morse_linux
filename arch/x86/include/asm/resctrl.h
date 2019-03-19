@@ -50,6 +50,16 @@ static inline bool resctrl_arch_match_closid(struct task_struct *tsk,
 		return tsk->closid == d;
 	}
 }
+
+static inline void resctrl_arch_set_rmid(struct task_struct *tsk, u32 rmid)
+{
+	tsk->rmid = rmid;
+}
+
+static inline bool resctrl_arch_match_rmid(struct task_struct *tsk, u32 rmid)
+{
+	return tsk->rmid == rmid;
+}
 #endif /* CONFIG_X86_CPU_RESCTRL */
 
 #endif /* _ASM_RESCTRL_H_ */
