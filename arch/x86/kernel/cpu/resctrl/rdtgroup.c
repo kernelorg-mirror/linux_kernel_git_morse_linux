@@ -2030,6 +2030,60 @@ static int mkdir_mondata_all(struct kernfs_node *parent_kn,
 			     struct rdtgroup *prgrp,
 			     struct kernfs_node **mon_data_kn);
 
+static int mba_sc_domain_allocate(struct rdt_resource *res,
+				  struct rdt_domain *d)
+{
+	u32 num_closid = closid_free_map_len;
+	int cpu = cpumask_any(&d->cpu_mask);
+	int i;
+
+	d->mba_sc = kcalloc_node(num_closid, sizeof(*d->mba_sc),
+				 GFP_KERNEL, cpu_to_node(cpu));
+	if (!d->mba_sc)
+		return -ENOMEM;
+
+	for (i = 0; i < num_closid; i++)
+		d->mba_sc[i].mbps_val = MBA_MAX_MBPS;
+
+	return 0;
+}
+
+static int mba_sc_allocate(struct rdt_resource *r)
+{
+	struct rdt_domain *d;
+	int ret;
+
+	lockdep_assert_cpus_held();
+
+	if (!is_mba_sc(r))
+		return 0;
+
+	list_for_each_entry(d, &r->domains, list) {
+		ret = mba_sc_domain_allocate(r, d);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}
+
+static void mba_sc_domain_destroy(struct rdt_resource *r,
+				  struct rdt_domain *d)
+{
+	kfree(d->mba_sc);
+	d->mba_sc = NULL;
+}
+
+static void mba_sc_destroy(struct rdt_resource *r)
+{
+	struct rdt_domain *d;
+
+	lockdep_assert_cpus_held();
+
+	list_for_each_entry(d, &r->domains, list)
+		mba_sc_domain_destroy(r, d);
+}
+
 static int rdt_enable_ctx(struct rdt_fs_context *ctx)
 {
 	int ret = 0;
@@ -2117,17 +2171,27 @@ static int schemata_list_create(void)
 
 		if (ret)
 			break;
+
+		ret = mba_sc_allocate(r);
+		if (ret)
+			break;
 	}
 
 	return ret;
 }
 
+/*
+ * During rdt_kill_sb(), the mba_sc state is reset before
+ * destroy_schemata_list() is called: unconditionally try to free the
+ * array.
+ */
 static void schemata_list_destroy(void)
 {
 	struct resctrl_schema *s, *tmp;
 
 	list_for_each_entry_safe(s, tmp, &resctrl_schema_all, list) {
 		list_del(&s->list);
+		mba_sc_destroy(s->res);
 		kfree(s);
 	}
 }
@@ -3255,6 +3319,8 @@ void resctrl_offline_domain(struct rdt_resource *r, struct rdt_domain *d)
 		__check_limbo(d, true);
 		cancel_delayed_work(&d->cqm_limbo);
 	}
+	if (static_branch_unlikely(&rdt_enable_key) && is_mba_sc(r))
+		mba_sc_domain_destroy(r, d);
 	bitmap_free(d->rmid_busy_llc);
 	kfree(d->mbm_total);
 	kfree(d->mbm_local);
@@ -3286,6 +3352,9 @@ static int domain_setup_mon_state(struct rdt_resource *r, struct rdt_domain *d)
 			return -ENOMEM;
 		}
 	}
+
+	if (is_mba_sc(r))
+		mba_sc_domain_allocate(r, d);
 
 	return 0;
 }

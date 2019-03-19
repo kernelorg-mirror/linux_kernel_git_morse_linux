@@ -15,6 +15,9 @@ int proc_resctrl_show(struct seq_file *m,
 
 #endif
 
+/* max value for struct resctrl_mba_sc's mbps_val */
+#define MBA_MAX_MBPS   U32_MAX
+
 /**
  * enum resctrl_conf_type - The type of configuration.
  * @CDP_NONE:	No prioritisation, both code and data are controlled or monitored.
@@ -40,6 +43,14 @@ struct resctrl_staged_config {
 };
 
 /**
+ * struct resctrl_mba_sc - per-closid values for the control loop
+ * @mbps_val:		The user's specified control value
+ */
+struct resctrl_mba_sc {
+	u32		mbps_val;
+};
+
+/**
  * struct rdt_domain - group of CPUs sharing a resctrl resource
  * @list:		all instances of this resource
  * @id:			unique id for this instance
@@ -53,6 +64,7 @@ struct resctrl_staged_config {
  * @cqm_work_cpu:	worker CPU for CQM h/w counters
  * @plr:		pseudo-locked region (if any) associated with domain
  * @staged_config:	parsed configuration to be applied
+ * @mba_sc:	the mba software controller properties, indexed by closid
  */
 struct rdt_domain {
 	struct list_head		list;
@@ -67,6 +79,7 @@ struct rdt_domain {
 	int				cqm_work_cpu;
 	struct pseudo_lock_region	*plr;
 	struct resctrl_staged_config	staged_config[CDP_NUM_TYPES];
+	struct resctrl_mba_sc		*mba_sc;
 };
 
 /**
