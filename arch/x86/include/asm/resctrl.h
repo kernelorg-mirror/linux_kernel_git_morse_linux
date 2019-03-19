@@ -12,6 +12,9 @@ typedef struct { u32 val; } hw_closid_t;
 #define as_hwclosid_t(x)	((hw_closid_t){(x)})
 #define hwclosid_val(x)		(x.val)
 
+extern bool rdt_alloc_capable;
+extern bool rdt_mon_capable;
+
 DECLARE_STATIC_KEY_FALSE(rdt_enable_key);
 DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 DECLARE_STATIC_KEY_FALSE(rdt_mon_enable_key);
@@ -23,6 +26,11 @@ DECLARE_STATIC_KEY_FALSE(rdt_mon_enable_key);
 u32 resctrl_arch_system_num_closid(void);
 u32 resctrl_arch_system_num_rmid(void);
 
+static inline bool resctrl_arch_alloc_capable(void)
+{
+	return rdt_alloc_capable;
+}
+
 static inline void resctrl_arch_enable_alloc(void)
 {
 	static_branch_enable_cpuslocked(&rdt_alloc_enable_key);
@@ -33,6 +41,11 @@ static inline void resctrl_arch_disable_alloc(void)
 {
 	static_branch_disable_cpuslocked(&rdt_alloc_enable_key);
 	static_branch_dec_cpuslocked(&rdt_enable_key);
+}
+
+static inline bool resctrl_arch_mon_capable(void)
+{
+	return rdt_mon_capable;
 }
 
 static inline void resctrl_arch_enable_mon(void)

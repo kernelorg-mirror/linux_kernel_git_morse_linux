@@ -92,8 +92,6 @@ struct rmid_read {
 };
 
 extern unsigned int resctrl_cqm_threshold;
-extern bool rdt_alloc_capable;
-extern bool rdt_mon_capable;
 extern bool rdt_cdp_enabled;
 extern unsigned int rdt_mon_features;
 extern struct list_head resctrl_all_schema;
