@@ -15,6 +15,10 @@ int proc_resctrl_show(struct seq_file *m,
 
 #endif
 
+#include <asm/resctrl.h>
+
+/* Closids are stored as a bitmap in a u32 */
+#define RESCTRL_MAX_CLOSID 32
 
 typedef struct { u32 val; } hw_closid_t;
 #define as_hwclosid_t(x)	((hw_closid_t){(x)})
@@ -131,9 +135,6 @@ struct resctrl_schema;
  * @cache:		If the component has cache controls, their properties.
  * @membw:		If the component has bandwidth controls, their properties.
  *
- * @num_closid:		Number of CLOSIDs available.
- * @num_rmid:		Number of RMIDs available.
- *
  * @domains:		All domains for this resource
  *
  * @name:		Name to use in "schemata" file.
@@ -156,9 +157,6 @@ struct rdt_resource {
 
 	struct resctrl_cache	cache;
 	struct resctrl_membw	membw;
-
-	int			num_closid;
-	int			num_rmid;
 
 	struct list_head	domains;
 
