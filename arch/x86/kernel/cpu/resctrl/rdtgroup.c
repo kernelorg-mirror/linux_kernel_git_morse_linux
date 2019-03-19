@@ -1889,6 +1889,64 @@ void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 		l3_qos_cfg_update(&hw_res->cdp_enabled);
 }
 
+static int mba_sc_domain_allocate(struct rdt_resource *r, struct rdt_domain *d)
+{
+	u32 num_closid = resctrl_arch_get_num_closid(r);
+	int cpu = cpumask_any(&d->cpu_mask);
+	int i;
+
+	/*
+	 * d->mbps_val is allocated by a call to this function in set_mba_sc(),
+	 * and domain_setup_mon_state(). Both calls are guarded by is_mba_sc(),
+	 * which can only return true while the filesystem is mounted. The
+	 * two calls are prevented from racing as rdt_get_tree() takes the
+	 * cpuhp read lock before calling rdt_enable_ctx(ctx), which prevents
+	 * it running concurrently with resctrl_online_domain().
+	 */
+	lockdep_assert_cpus_held();
+
+	d->mbps_val = kcalloc_node(num_closid, sizeof(*d->mbps_val),
+				   GFP_KERNEL, cpu_to_node(cpu));
+	if (!d->mbps_val)
+		return -ENOMEM;
+
+	for (i = 0; i < num_closid; i++)
+		d->mbps_val[i] = MBA_MAX_MBPS;
+
+	return 0;
+}
+
+static int mba_sc_allocate(struct rdt_resource *r)
+{
+	struct rdt_domain *d;
+	int ret;
+
+	list_for_each_entry(d, &r->domains, list) {
+		ret = mba_sc_domain_allocate(r, d);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}
+
+static void mba_sc_domain_destroy(struct rdt_resource *r,
+				  struct rdt_domain *d)
+{
+	kfree(d->mbps_val);
+	d->mbps_val = NULL;
+}
+
+static void mba_sc_destroy(struct rdt_resource *r)
+{
+	struct rdt_domain *d;
+
+	lockdep_assert_cpus_held();
+
+	list_for_each_entry(d, &r->domains, list)
+		mba_sc_domain_destroy(r, d);
+}
+
 /*
  * Enable or disable the MBA software controller
  * which helps user specify bandwidth in MBps.
@@ -1911,6 +1969,10 @@ static int set_mba_sc(bool mba_sc)
 		setup_default_ctrlval(r, hw_dom->ctrl_val, hw_dom->mbps_val);
 	}
 
+	if (is_mba_sc(r))
+		return mba_sc_allocate(r);
+
+	mba_sc_destroy(r);
 	return 0;
 }
 
@@ -3259,6 +3321,8 @@ void resctrl_offline_domain(struct rdt_resource *r, struct rdt_domain *d)
 		__check_limbo(d, true);
 		cancel_delayed_work(&d->cqm_limbo);
 	}
+	if (is_mba_sc(r))
+		mba_sc_domain_destroy(r, d);
 	bitmap_free(d->rmid_busy_llc);
 	kfree(d->mbm_total);
 	kfree(d->mbm_local);
@@ -3290,6 +3354,9 @@ static int domain_setup_mon_state(struct rdt_resource *r, struct rdt_domain *d)
 			return -ENOMEM;
 		}
 	}
+
+	if (is_mba_sc(r))
+		return mba_sc_domain_allocate(r, d);
 
 	return 0;
 }
