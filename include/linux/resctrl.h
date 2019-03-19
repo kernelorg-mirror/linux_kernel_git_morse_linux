@@ -195,5 +195,6 @@ int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid);
 void resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 			     u32 closid, enum resctrl_conf_type type,
 			     u32 *value);
+int resctrl_online_domain(struct rdt_resource *r, struct rdt_domain *d);
 
 #endif /* _RESCTRL_H */
