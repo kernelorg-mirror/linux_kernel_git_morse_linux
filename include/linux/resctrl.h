@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/pid.h>
+#include <linux/resctrl_types.h>
 
 #ifdef CONFIG_PROC_CPU_RESCTRL
 
@@ -30,26 +31,6 @@ int proc_resctrl_show(struct seq_file *m,
  * The longest name we expect in the schemata file:
  */
 #define RESCTRL_NAME_LEN	7
-
-enum resctrl_conf_type {
-	CDP_BOTH = 0,
-	CDP_CODE,
-	CDP_DATA,
-};
-#define NUM_CDP_TYPES	CDP_DATA + 1
-
-/*
- * Event IDs, the values match those used to program IA32_QM_EVTSEL before
- * reading IA32_QM_CTR on RDT systems.
- */
-enum resctrl_event_id {
-	QOS_L3_OCCUP_EVENT_ID		= 0x01,
-	QOS_L3_MBM_TOTAL_EVENT_ID	= 0x02,
-	QOS_L3_MBM_LOCAL_EVENT_ID	= 0x03,
-
-	/* Must be the last */
-	RESCTRL_NUM_EVENT_IDS,
-};
 
 /**
  * struct resctrl_staged_config - parsed configuration to be applied
@@ -187,15 +168,6 @@ struct rdt_resource {
 
 	struct list_head	evt_list;
 	unsigned long		fflags;
-};
-
-enum resctrl_resource_level {
-	RDT_RESOURCE_L3,
-	RDT_RESOURCE_L2,
-	RDT_RESOURCE_MBA,
-
-	/* Must be the last */
-	RDT_NUM_RESOURCES,
 };
 
 /*
