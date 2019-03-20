@@ -194,4 +194,8 @@ static inline void *resctrl_arch_mon_ctx_alloc(void)
 };
 static inline void resctrl_arch_mon_ctx_free(void *ctx) { };
 
+bool resctrl_arch_is_llc_occupancy_enabled(void);
+bool resctrl_arch_is_mbm_total_enabled(void);
+bool resctrl_arch_is_mbm_local_enabled(void);
+
 #endif /* _ASM_RESCTRL_H_ */
