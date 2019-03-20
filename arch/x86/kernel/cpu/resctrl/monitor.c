@@ -295,11 +295,11 @@ void resctrl_arch_reset_rmid_all(struct rdt_resource *r, struct rdt_mon_domain *
 {
 	struct rdt_hw_mon_domain *hw_dom = resctrl_to_arch_mon_dom(d);
 
-	if (is_mbm_total_enabled())
+	if (resctrl_arch_is_mbm_total_enabled())
 		memset(hw_dom->arch_mbm_total, 0,
 		       sizeof(*hw_dom->arch_mbm_total) * r->mon.num_rmid);
 
-	if (is_mbm_local_enabled())
+	if (resctrl_arch_is_mbm_local_enabled())
 		memset(hw_dom->arch_mbm_local, 0,
 		       sizeof(*hw_dom->arch_mbm_local) * r->mon.num_rmid);
 }
@@ -569,7 +569,7 @@ void free_rmid(u32 closid, u32 rmid)
 
 	entry = __rmid_entry(idx);
 
-	if (is_llc_occupancy_enabled())
+	if (resctrl_arch_is_llc_occupancy_enabled())
 		add_rmid_to_limbo(entry);
 	else
 		list_add_tail(&entry->list, &rmid_free_lru);
@@ -761,6 +761,9 @@ static void update_mba_bw(struct rdtgroup *rgrp, struct rdt_mon_domain *dom_mbm)
 	struct rdtgroup *entry;
 	u32 cur_bw, user_bw;
 
+	if (!resctrl_arch_is_mbm_local_enabled())
+		return;
+
 	r_mba = resctrl_arch_get_resource(RDT_RESOURCE_MBA);
 	evt_id = rgrp->mba_mbps_event;
 
@@ -852,10 +855,10 @@ static void mbm_update(struct rdt_resource *r, struct rdt_mon_domain *d,
 	 * This is protected from concurrent reads from user as both
 	 * the user and overflow handler hold the global mutex.
 	 */
-	if (is_mbm_total_enabled())
+	if (resctrl_arch_is_mbm_total_enabled())
 		mbm_update_one_event(r, d, closid, rmid, QOS_L3_MBM_TOTAL_EVENT_ID);
 
-	if (is_mbm_local_enabled())
+	if (resctrl_arch_is_mbm_local_enabled())
 		mbm_update_one_event(r, d, closid, rmid, QOS_L3_MBM_LOCAL_EVENT_ID);
 }
 
@@ -1085,11 +1088,11 @@ static __init void l3_mon_evt_init(struct rdt_resource *r)
 {
 	INIT_LIST_HEAD(&r->mon.evt_list);
 
-	if (is_llc_occupancy_enabled())
+	if (resctrl_arch_is_llc_occupancy_enabled())
 		list_add_tail(&llc_occupancy_event.list, &r->mon.evt_list);
-	if (is_mbm_total_enabled())
+	if (resctrl_arch_is_mbm_total_enabled())
 		list_add_tail(&mbm_total_event.list, &r->mon.evt_list);
-	if (is_mbm_local_enabled())
+	if (resctrl_arch_is_mbm_local_enabled())
 		list_add_tail(&mbm_local_event.list, &r->mon.evt_list);
 }
 
@@ -1607,14 +1610,14 @@ void mbm_cntr_reset(struct rdt_resource *r)
 	 * of hardware counter is not considered as an overflow in the
 	 * next update.
 	 */
-	if (is_mbm_enabled() && r->mon.mbm_cntr_assignable) {
+	if (resctrl_is_mbm_enabled() && r->mon.mbm_cntr_assignable) {
 		list_for_each_entry(dom, &r->mon_domains, hdr.list) {
 			memset(dom->cntr_cfg, 0,
 			       sizeof(*dom->cntr_cfg) * r->mon.num_mbm_cntrs);
-			if (is_mbm_total_enabled())
+			if (resctrl_arch_is_mbm_total_enabled())
 				memset(dom->mbm_total, 0,
 				       sizeof(struct mbm_state) * idx_limit);
-			if (is_mbm_local_enabled())
+			if (resctrl_arch_is_mbm_local_enabled())
 				memset(dom->mbm_local, 0,
 				       sizeof(struct mbm_state) * idx_limit);
 			resctrl_arch_reset_rmid_all(r, dom);
