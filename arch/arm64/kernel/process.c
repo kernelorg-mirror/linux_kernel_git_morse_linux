@@ -50,6 +50,7 @@
 #include <asm/exec.h>
 #include <asm/fpsimd.h>
 #include <asm/mmu_context.h>
+#include <asm/mpam.h>
 #include <asm/processor.h>
 #include <asm/pointer_auth.h>
 #include <asm/stacktrace.h>
@@ -451,6 +452,12 @@ void uao_thread_switch(struct task_struct *next)
 	}
 }
 
+static void mpam_thread_switch(struct task_struct *next)
+{
+	if (system_supports_mpam() && next->active_mm != &init_mm)
+		_mpam_thread_switch(next);
+}
+
 /*
  * Force SSBS state on context-switch, since it may be lost after migrating
  * from a CPU which treats the bit as RES0 in a heterogeneous system.
@@ -507,6 +514,7 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 	uao_thread_switch(next);
 	ptrauth_thread_switch(next);
 	ssbs_thread_switch(next);
+	mpam_thread_switch(next);
 
 	/*
 	 * Complete any pending TLB or cache maintenance on this CPU in case
