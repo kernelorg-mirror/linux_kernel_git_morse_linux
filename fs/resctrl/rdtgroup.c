@@ -2568,8 +2568,8 @@ static int mkdir_mondata_all(struct kernfs_node *parent_kn,
 			     struct kernfs_node **dest_kn)
 {
 	enum resctrl_resource_level i;
-	struct rdt_resource *r;
 	struct kernfs_node *kn;
+	struct rdt_resource *r;
 	int ret;
 
 	/*

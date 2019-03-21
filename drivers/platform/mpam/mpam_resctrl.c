@@ -625,3 +625,75 @@ int mpam_resctrl_cpu_offline(unsigned int cpu)
 
 	return 0;
 }
+
+/*
+ * Allocate the memory we need to (repeatedly) read a monitor.
+ * As we only exposed one event to resctrl, we assume its the same one here.
+ */
+void *resctrl_arch_mon_ctx_alloc(void)
+{
+	int ret;
+	struct mon_cfg *cfg;
+	struct mpam_resctrl_res *res = mpam_resctrl_events[QOS_L3_OCCUP_EVENT_ID];
+
+	if (!res || !res->class)
+		return ERR_PTR(-EINVAL);
+
+	cfg = kzalloc(GFP_KERNEL, sizeof(*cfg));
+	if (!cfg)
+		return ERR_PTR(-ENOMEM);
+
+	ret = mpam_alloc_csu_mon(res->class);
+	if (ret < 0) {
+		kfree(cfg);
+		return ERR_PTR(ret);
+	}
+
+	WARN_ON_ONCE(ret > USHRT_MAX);
+	cfg->mon = ret;
+
+	return cfg;
+}
+
+void resctrl_arch_mon_ctx_free(void *ctx)
+{
+	struct mon_cfg *cfg = ctx;
+	struct mpam_resctrl_res *res = mpam_resctrl_events[QOS_L3_OCCUP_EVENT_ID];
+
+	WARN_ON_ONCE(!res || !res->class);
+	mpam_free_csu_mon(res->class, cfg->mon);
+	kfree(cfg);
+}
+
+int mpam_resctrl_rmid_read(u16 closid, u32 rmid, enum resctrl_event_id eventid,
+			   u64 *val, void *arch_mon_ctx)
+{
+	struct rdt_domain *d;
+	struct mpam_device *dev;
+	struct mpam_resctrl_res *res;
+	struct mpam_resctrl_dom *dom;
+	struct mon_cfg *cfg = arch_mon_ctx;
+
+	/* rmid_read seems to be implicitly for 'this' domain */
+	WARN_ON_ONCE(preemptible());
+
+	WARN_ON_ONCE(eventid != QOS_L3_OCCUP_EVENT_ID);
+	res = mpam_resctrl_events[eventid];
+	if (!res || !res->class)
+		return -EINVAL;
+	d = resctrl_get_domain_from_cpu(smp_processor_id(), &res->resctrl_res);
+	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
+
+	WARN_ON_ONCE(!list_is_singular(&dom->comp->devices));
+	dev = list_first_entry(&dom->comp->devices, struct mpam_device, comp_list);
+
+	WARN_ON_ONCE(rmid > U8_MAX && rmid != RESCTRL_READ_ALL_RMID);
+
+	cfg->partid = closid;
+	cfg->match_pmg = (rmid == RESCTRL_READ_ALL_RMID);
+	cfg->pmg = rmid;
+
+	*val = 0;
+
+	return mpam_device_csu_read(dev, cfg, val);
+}

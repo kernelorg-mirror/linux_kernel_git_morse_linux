@@ -14,6 +14,7 @@
 #include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/lockdep.h>
+#include <linux/log2.h>
 #include <linux/mutex.h>
 #include <linux/preempt.h>
 #include <linux/printk.h>
@@ -332,6 +333,14 @@ static void mpam_probe_update_sysprops(u16 max_partid, u8 max_pmg)
 
 	mpam_sysprops.max_partid = min(mpam_sysprops.max_partid, max_partid);
 	mpam_sysprops.max_pmg = min(mpam_sysprops.max_pmg, max_pmg);
+}
+
+u8 mpam_pmg_bits(void)
+{
+	if (mpam_sysprops.max_pmg)
+		return ilog2(mpam_sysprops.max_pmg);
+
+	return 0;
 }
 
 static int mpam_device_probe(struct mpam_device *dev)
