@@ -400,6 +400,7 @@
 #define SYS_MAIR_EL1			sys_reg(3, 0, 10, 2, 0)
 #define SYS_AMAIR_EL1			sys_reg(3, 0, 10, 3, 0)
 #define SYS_MPAM1_EL1			sys_reg(3, 0, 10, 5, 0)
+#define SYS_MPAM0_EL1			sys_reg(3, 0, 10, 5, 1)
 
 #define SYS_LORSA_EL1			sys_reg(3, 0, 10, 4, 0)
 #define SYS_LOREA_EL1			sys_reg(3, 0, 10, 4, 1)
