@@ -1517,6 +1517,14 @@ config ARM64_PTR_AUTH
 
 endmenu
 
+menu "ARMv8.4 architectural features"
+
+config ARM64_MPAM
+	bool "Enable support for MPAM"
+	select ARCH_HAS_CPU_RESCTRL
+
+endmenu
+
 menu "ARMv8.5 architectural features"
 
 config ARM64_E0PD
