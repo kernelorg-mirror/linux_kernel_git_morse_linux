@@ -1,0 +1,64 @@
+MPAM branch snapshot: v5.6-rc1
+
+This snapshot exists to give the full context for any x86 resctrl changes.
+
+MPAM spec:
+https://developer.arm.com/docs/ddi0598/latest
+
+
+ABI PROBLEMS:
+ * RMIDs.
+   These are an independent number space for RDT. For MPAM they are an
+   extension of the partid/closid space. There is no value that can be
+   exposed to user-space as num_rmid as it depends on how they will be
+   used.
+   x86's RMID aging applies to MPAMs partid+pmgs. The closid allocator
+   needs to consider the LLC cache occupancy when allocating a closid,
+   as for MPAM, the rmid won't 'hide it'.
+
+ * Monitors.
+   RDT has one counter per RMID, they run continuously. MPAM advertises
+   how many monitors it has, which is very likely to be fewer than we
+   want. This means MPAM can't expose the free-runing MBM_* counters
+   via the filesystem. These would need exposing via perf.
+
+
+ * Bitmaps.
+   MPAM has some bitmaps, but it has other stuff too. Forcing the bitmaps
+   to be the user-space interface requires the underlying control to be
+   capable of isolation. Ideally user-space would set a priority/cost for
+   each rdtgroup, and indicate whether they should be isolated from other
+   rdtgroup at the same level.
+
+
+KNOWN ISSUES:
+ * The ACPI table is based on an old alpha version, and the definition of PPTT
+   has changed in the meantime. All the table parsing code needs to be
+   re-written against the new version of the MPAM table spec.
+
+ * The MPAM monitor doesn't retry on -EBUSY.
+
+ * The existing RDT monitor code doesn't look safe for cpuphp.
+   cqm_handle_limbo() takes a mutex, so it can sleep. What happens if
+   all the cpus in a domain go offline while its holding a cpu, and a
+   domain pointer....
+
+ * Exclusive reservations don't work as they overlap with devices.
+   This in turn is because we don't have GIC/SMMU support yet, and these
+   will continue to use partid=0.
+
+ * partid=0 should be reserved for the unknown hardware, not reserved for the
+   resctrl default, which we let user-space play with it. This also affects
+   the kernel, which is not (currently) the intention.
+
+ * No attempt to use devm has been made.
+
+ * MBM_* is unsupported as it is unlikely any system can provide enough
+   PMU like counters to provide the resctrl interface.
+
+ * LLC occupancy may be broken for CDP on arm64, as the monitor codes assumes
+   CDP doesn't matter for the monitors.
+
+
+MB/min_bandwidth looks fishy
+x86:MB/bandwidth_gran looks wrong
