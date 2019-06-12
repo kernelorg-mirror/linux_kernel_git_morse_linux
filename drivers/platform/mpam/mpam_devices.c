@@ -49,6 +49,13 @@ struct mpam_sysprops mpam_sysprops;
  */
 static struct work_struct mpam_enable_work;
 
+#ifdef CONFIG_LOCKDEP
+void mpam_class_list_lock_held(void)
+{
+	lockdep_assert_held(&mpam_devices_lock);
+}
+#endif /* CONFIG_LOCKDEP */
+
 struct mpam_device_sync
 {
 	struct mpam_component *comp;
@@ -516,11 +523,21 @@ static void mpam_enable_squash_features(void)
 
 		list_for_each_entry(comp, &class->components, class_list) {
 			list_for_each_entry(dev, &comp->devices, comp_list) {
+				comp->num_devices++;
+
 				spin_lock(&dev->lock);
 				__device_class_feature_mismatch(dev, class);
 				class->features &= dev->features;
 				spin_unlock(&dev->lock);
 			}
+
+			/*
+			 * resctrl can't export components made of multiple
+			 * devices. Keep a note of the largest number of
+			 * devices this class has.
+			 */
+			if (class->max_devices < comp->num_devices)
+				class->max_devices = comp->num_devices;
 		}
 
 		mpam_probe_update_sysprops(class->max_partid, class->max_pmg);

@@ -132,6 +132,7 @@ struct mpam_component
 
 	/* mpam_devices in this domain */
 	struct list_head        devices;
+	int			num_devices;
 
 	struct cpumask          fw_affinity;
 
@@ -155,6 +156,7 @@ struct mpam_class
 	 * mpam_components in this class.
 	 */
 	struct list_head        components;
+	int			max_devices;
 
 	struct cpumask          fw_affinity;
 
@@ -192,6 +194,11 @@ struct mpam_resctrl_res {
 
 /* List of all classes */
 extern struct list_head mpam_classes;
+#ifdef CONFIG_LOCKDEP
+void mpam_class_list_lock_held(void);
+#else
+static inline void mpam_class_list_lock_held(void) { }
+#endif
 
 int mpam_resctrl_cpu_online(unsigned int cpu);
 int mpam_resctrl_cpu_offline(unsigned int cpu);
