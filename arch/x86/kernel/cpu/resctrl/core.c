@@ -555,7 +555,8 @@ static void domain_remove_cpu(int cpu, struct rdt_resource *r)
 		list_del(&d->list);
 		if (r->mon_capable && is_mbm_enabled())
 			cancel_delayed_work(&d->mbm_over);
-		if (is_llc_occupancy_enabled() &&  has_busy_rmid(r, d)) {
+		if (is_llc_occupancy_enabled() && r->mon_capable &&
+		    has_busy_rmid(r, d)) {
 			/*
 			 * When a package is going down, forcefully
 			 * decrement rmid->ebusy. There is no way to know
