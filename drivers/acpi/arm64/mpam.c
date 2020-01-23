@@ -9,6 +9,7 @@
 #include <linux/arm_mpam.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
+#include <linux/dmi.h>
 
 #include <asm/mpam.h>
 
@@ -205,6 +206,95 @@ static int __init acpi_mpam_parse_table(struct acpi_table_header *table,
 	return ret;
 }
 
+static int __init force_taishan_layout(const struct dmi_system_id *d)
+{
+	struct mpam_device *dev;
+	int ret = 0;
+
+	ret = mpam_discovery_start();
+	if (ret)
+		return ret;
+
+	/* L3_0 cache_id, addr: 5242880(0x80000),0x000098b90000 */
+	dev = mpam_device_create_cache(3, 0x80000, NULL,
+				       0x000098b90000);
+	if (IS_ERR(dev)) {
+		pr_err("L3_0 create failed\n");
+		goto out;
+	}
+
+	/* L3_1 cache_id, addr: 1572864(0x180000),0x000090b90000 */
+	dev = mpam_device_create_cache(3, 0x180000, NULL,
+				       0x000090b90000);
+	if (IS_ERR(dev)) {
+		pr_err("L3_1 create failed\n");
+		goto out;
+	}
+
+	/* L3_2 cache_id, addr: 2621440(0x280000),0x200098b90000 */
+	dev = mpam_device_create_cache(3, 0x280000, NULL,
+				       0x200098b90000);
+	if (IS_ERR(dev)) {
+		pr_err("L3_2 create failed\n");
+		goto out;
+	}
+
+
+	/* L3_3 cache_id, addr: 3670016(0x380000),0x200090b90000 */
+	dev = mpam_device_create_cache(3, 0x380000, NULL,
+				       0x200090b90000);
+	if (IS_ERR(dev)) {
+		pr_err("L3_3 create failed\n");
+		goto out;
+	}
+
+	/* memory_controller_0 */
+	dev = mpam_device_create_memory(0, 0x000098c10000);
+	if (IS_ERR(dev)) {
+		pr_err("memory_controller_0 create failed\n");
+		goto out;
+	}
+
+	/* memory_controller_1 */
+	dev = mpam_device_create_memory(1, 0x000090c10000);
+	if (IS_ERR(dev)) {
+		pr_err("memory_controller_1 create failed\n");
+		goto out;
+	}
+
+	/* memory_controller_2 */
+	dev = mpam_device_create_memory(2, 0x200098c10000);
+	if (IS_ERR(dev)) {
+		pr_err("memory_controller_2 create failed\n");
+		goto out;
+	}
+
+	/* memory_controller_3 */
+	dev = mpam_device_create_memory(3, 0x200090c10000);
+	if (IS_ERR(dev)) {
+		pr_err("memory_controller_3 create failed\n");
+		goto out;
+	}
+
+	mpam_discovery_complete();
+	return 0;
+
+out:
+	mpam_discovery_failed();
+	return PTR_ERR(dev);
+}
+
+static const struct dmi_system_id maybe_no_firmware_table[] __initconst = {
+	{
+		.callback = force_taishan_layout,
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Huawei"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "TaiShan 2280 V2"),
+		},
+	},
+	{},
+};
+
 int __init acpi_mpam_parse(void)
 {
 	struct acpi_table_header *mpam, *pptt;
@@ -215,8 +305,15 @@ int __init acpi_mpam_parse(void)
 		return 0;
 
 	status = acpi_get_table(ACPI_SIG_MPAM, 0, &mpam);
-	if (ACPI_FAILURE(status))
+	if (ACPI_FAILURE(status)) {
+		if (dmi_check_system(maybe_no_firmware_table)) {
+			pr_err("HARD CODED MSC DATA USED");
+			add_taint(TAINT_OVERRIDDEN_ACPI_TABLE, LOCKDEP_STILL_OK);
+			return 0;
+		}
+
 		return -ENOENT;
+	}
 
 	/* PPTT is optional, there may be no mpam cache controls */
 	acpi_get_table(ACPI_SIG_PPTT, 0, &pptt);
