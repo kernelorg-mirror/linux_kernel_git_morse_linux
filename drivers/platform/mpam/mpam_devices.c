@@ -836,6 +836,9 @@ static void mpam_enable(struct work_struct *work)
 	cpuhp_remove_state(mpam_cpuhp_state);
 
 	mutex_lock(&mpam_devices_lock);
+	if (IS_ENABLED(CONFIG_ARM_CPU_RESCTRL))
+		mpam_debugfs_init();
+
 	err = mpam_resctrl_setup();
 	mutex_unlock(&mpam_devices_lock);
 	if (!err) {
