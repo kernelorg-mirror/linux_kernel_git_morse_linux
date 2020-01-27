@@ -4,9 +4,13 @@
 #ifndef __LINUX_ARM_MPAM_H
 #define __LINUX_ARM_MPAM_H
 
+#include <linux/acpi.h> // TODO: kill me
 #include <linux/cacheinfo.h>
 #include <linux/cpumask.h>
+#include <linux/topology.h>
 #include <linux/types.h>
+
+#include <asm/acpi.h> // TODO: kill me
 
 /* Bits for irq:flags, must match the ACPI definition */
 #define MPAM_IRQ_MODE_LEVEL    0x1
@@ -64,8 +68,27 @@ mpam_device_create_cache(u8 level_idx, int cache_id,
 static inline __init struct mpam_device *
 mpam_device_create_memory(int nid, phys_addr_t hwpage_address)
 {
-	return __mpam_device_create(~0, MPAM_CLASS_MEMORY, nid,
-				    cpu_possible_mask, hwpage_address);
+	int cpu;
+	u32 swizzled_hwid;
+	u64 min_hwid = INVALID_HWID;
+	const struct cpumask *nid_affinity = cpumask_of_node(nid);
+
+	/*
+	 * We can't use the nid as the component id, as it may never
+	 * match a cache, and the topology may be inside-out. Instead,
+	 * find the cpu in nid_affinity with the smallest MPIDR, and use
+	 * that. This matches how cacheinfo generates ids on arm64.
+	 * TODO: share that code by making it less ACPI specific.
+	 */
+	for_each_cpu(cpu, nid_affinity) {
+		if (min_hwid > cpu_logical_map(cpu))
+			min_hwid = cpu_logical_map(cpu);
+	}
+	WARN_ON_ONCE(min_hwid == INVALID_HWID);
+	swizzled_hwid = ARCH_PHYSID_TO_U32(min_hwid);
+
+	return __mpam_device_create(~0, MPAM_CLASS_MEMORY, swizzled_hwid,
+				    nid_affinity, hwpage_address);
 }
 
 /*
