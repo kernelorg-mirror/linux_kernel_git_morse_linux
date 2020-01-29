@@ -1804,14 +1804,14 @@ out_destroy:
 	return ret;
 }
 
-static void l3_qos_cfg_update(void *arg)
+void l3_qos_cfg_update(void *arg)
 {
 	bool *enable = arg;
 
 	wrmsrl(MSR_IA32_L3_QOS_CFG, *enable ? L3_QOS_CDP_ENABLE : 0ULL);
 }
 
-static void l2_qos_cfg_update(void *arg)
+void l2_qos_cfg_update(void *arg)
 {
 	bool *enable = arg;
 
@@ -1830,6 +1830,9 @@ static int set_cache_qos_cfg(int level, bool enable)
 	cpumask_var_t cpu_mask;
 	struct rdt_domain *d;
 	int cpu;
+
+	/* CDP state is restored during cpuhp, which takes this lock */
+	lockdep_assert_held(&rdtgroup_mutex);
 
 	if (level == RDT_RESOURCE_L3)
 		update = l3_qos_cfg_update;

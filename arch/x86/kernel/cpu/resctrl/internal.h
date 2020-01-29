@@ -602,4 +602,7 @@ void __check_limbo(struct rdt_domain *d, bool force_free);
 bool cbm_validate_intel(char *buf, u32 *data, struct rdt_resource *r);
 bool cbm_validate_amd(char *buf, u32 *data, struct rdt_resource *r);
 
+void l3_qos_cfg_update(void *arg);
+void l2_qos_cfg_update(void *arg);
+
 #endif /* _ASM_X86_RESCTRL_INTERNAL_H */

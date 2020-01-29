@@ -541,6 +541,25 @@ static int domain_setup_mon_state(struct rdt_resource *r, struct rdt_domain *d)
 	return 0;
 }
 
+/* resctrl's use of CDP may have changed while this domain slept */
+static void domain_reconfigure_cdp(void)
+{
+	bool cdp_enable;
+	struct rdt_resource *r;
+
+	lockdep_assert_held(&rdtgroup_mutex);
+
+	r = &rdt_resources_all[RDT_RESOURCE_L2];
+	cdp_enable = !r->alloc_enabled;
+	if (r->alloc_capable)
+		l2_qos_cfg_update(&cdp_enable);
+
+	r = &rdt_resources_all[RDT_RESOURCE_L3];
+	cdp_enable = !r->alloc_enabled;
+	if (r->alloc_capable)
+		l3_qos_cfg_update(&cdp_enable);
+}
+
 /*
  * domain_add_cpu - Add a cpu to a resource's domain list.
  *
@@ -577,6 +596,8 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 
 	d->id = id;
 	cpumask_set_cpu(cpu, &d->cpu_mask);
+
+	domain_reconfigure_cdp();
 
 	if (r->alloc_capable && domain_setup_ctrlval(r, d)) {
 		kfree(d);
