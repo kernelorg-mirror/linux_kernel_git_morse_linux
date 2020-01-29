@@ -249,37 +249,44 @@ next:
 	return -EINVAL;
 }
 
-static void apply_config(struct rdt_hw_domain *hw_dom,
+/*
+ * Merge the staged config with the domains configuration array.
+ * Return true if changes were made.
+ */
+static bool apply_config(struct rdt_hw_domain *hw_dom,
 			 struct resctrl_staged_config *cfg,
-			 cpumask_var_t cpu_mask, bool mba_sc)
+			 cpumask_var_t cpu_mask, u32 idx, bool mba_sc)
 {
 	struct rdt_domain *dom = &hw_dom->resctrl;
 	u32 *dc = mba_sc ? hw_dom->mbps_val : hw_dom->ctrl_val;
 
-	if (cfg->new_ctrl != dc[cfg->closid]) {
+	cfg->have_new_ctrl = false;
+	if (cfg->new_ctrl != dc[idx]) {
 		cpumask_set_cpu(cpumask_any(&dom->cpu_mask), cpu_mask);
-		dc[cfg->closid] = cfg->new_ctrl;
+		dc[idx] = cfg->new_ctrl;
+
+		return true;
 	}
 
-	cfg->have_new_ctrl = false;
+	return false;
 }
 
-int update_domains(struct rdt_resource *r, int closid)
+int resctrl_arch_update_domains(struct rdt_resource *r)
 {
 	struct resctrl_staged_config *cfg;
 	struct rdt_hw_domain *hw_dom;
+	bool msr_param_init = false;
 	struct msr_param msr_param;
 	enum resctrl_conf_type t;
 	cpumask_var_t cpu_mask;
 	struct rdt_domain *d;
 	bool mba_sc;
 	int cpu;
+	u32 idx;
 
 	if (!zalloc_cpumask_var(&cpu_mask, GFP_KERNEL))
 		return -ENOMEM;
 
-	msr_param.low = closid;
-	msr_param.high = msr_param.low + 1;
 	msr_param.res = r;
 
 	mba_sc = is_mba_sc(r);
@@ -290,9 +297,22 @@ int update_domains(struct rdt_resource *r, int closid)
 			if (!cfg->have_new_ctrl)
 				continue;
 
-			apply_config(hw_dom, cfg, cpu_mask, mba_sc);
+			idx = cfg->closid;
+			if (!apply_config(hw_dom, cfg, cpu_mask, idx, mba_sc))
+				continue;
+
+			if (!msr_param_init) {
+				msr_param.low = idx;
+				msr_param.high = idx;
+				msr_param_init = true;
+			} else {
+				msr_param.low = min(msr_param.low, idx);
+				msr_param.high = max(msr_param.high, idx);
+			}
 		}
 	}
+
+	msr_param.high += 1;
 
 	/*
 	 * Avoid writing the control msr with control values when
@@ -387,7 +407,7 @@ ssize_t rdtgroup_schemata_write(struct kernfs_open_file *of,
 
 	list_for_each_entry(s, &resctrl_all_schema, list) {
 		r = s->res;
-		ret = update_domains(r, rdtgrp->closid);
+		ret = resctrl_arch_update_domains(r);
 		if (ret)
 			goto out;
 	}
