@@ -6,6 +6,7 @@
 
 #include <linux/bug.h>
 #include <linux/jump_label.h>
+#include <linux/kernel.h>
 #include <linux/percpu.h>
 #include <linux/sched.h>
 #include <linux/resctrl_types.h>
@@ -182,5 +183,13 @@ static inline rmid_idx_t resctrl_arch_num_rmid_idx(void)
 	/* On x86, rmid is the rmid_idx */
 	return resctrl_arch_system_num_rmid();
 }
+
+/* x86 can always read an rmid, no data structures or timeout needed */
+static inline void *resctrl_arch_mon_ctx_alloc(void)
+{
+	might_sleep();
+	return NULL;
+};
+static inline void resctrl_arch_mon_ctx_free(void *ctx) { };
 
 #endif /* _ASM_RESCTRL_H_ */

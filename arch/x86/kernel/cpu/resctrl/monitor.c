@@ -80,7 +80,8 @@ static inline struct rmid_entry *__rmid_entry(rmid_idx_t idx)
 }
 
 int resctrl_arch_rmid_read(hw_closid_t closid, u32 rmid,
-			   enum resctrl_event_id eventid, u64 *res)
+			   enum resctrl_event_id eventid, u64 *res,
+			   void *ignored)
 {
 	u64 val;
 
@@ -108,12 +109,19 @@ int resctrl_arch_rmid_read(hw_closid_t closid, u32 rmid,
 
 static bool rmid_dirty(struct rmid_entry *entry)
 {
+	bool ret;
 	u64 val = 0;
+	void *arch_mon_ctx = resctrl_arch_mon_ctx_alloc();
 
-	if (resctrl_arch_rmid_read(entry->hw_closid, entry->rmid, QOS_L3_OCCUP_EVENT_ID, &val))
-		return true;
+	if (resctrl_arch_rmid_read(entry->hw_closid, entry->rmid,
+				   QOS_L3_OCCUP_EVENT_ID, &val,
+				   arch_mon_ctx))
+		ret = true;
+	else
+		ret = val >= resctrl_rmid_realloc_threshold;
+	resctrl_arch_mon_ctx_free(arch_mon_ctx);
 
-	return val >= resctrl_rmid_realloc_threshold;
+	return ret;
 }
 
 /*
@@ -201,6 +209,7 @@ int alloc_rmid(hw_closid_t hw_closid)
 static void add_rmid_to_limbo(struct rmid_entry *entry)
 {
 	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_L3);
+	void *arch_mon_ctx = resctrl_arch_mon_ctx_alloc();
 	struct rdt_domain *d;
 	int cpu, ret;
 	u64 val = 0;
@@ -214,7 +223,7 @@ static void add_rmid_to_limbo(struct rmid_entry *entry)
 			ret = resctrl_arch_rmid_read(entry->hw_closid,
 						     entry->rmid,
 						     QOS_L3_OCCUP_EVENT_ID,
-						    &val);
+						     &val, arch_mon_ctx);
 			if (ret || val <= resctrl_rmid_realloc_threshold)
 				continue;
 		}
@@ -229,6 +238,7 @@ static void add_rmid_to_limbo(struct rmid_entry *entry)
 		entry->busy++;
 	}
 	put_cpu();
+	resctrl_arch_mon_ctx_free(arch_mon_ctx);
 
 	if (entry->busy)
 		rmid_limbo_count++;
@@ -261,7 +271,8 @@ static int __mon_event_count(u32 rmid, struct rmid_read *rr)
 	u64 tval = 0;
 
 	hw_closid = resctrl_closid_cdp_map(rr->rgrp->closid, CDP_BOTH);
-	rr->err = resctrl_arch_rmid_read(hw_closid, rmid, rr->evtid, &tval);
+	rr->err = resctrl_arch_rmid_read(hw_closid, rmid, rr->evtid, &tval,
+					 rr->arch_mon_ctx);
 	if (rr->err)
 		return -EINVAL;
 
@@ -307,7 +318,8 @@ static void mbm_bw_count(u32 rmid, struct rmid_read *rr)
 	hw_closid_t hw_closid;
 
 	hw_closid = resctrl_closid_cdp_map(rr->rgrp->closid, CDP_BOTH);
-	if (resctrl_arch_rmid_read(hw_closid, rmid, rr->evtid, &tval))
+	if (resctrl_arch_rmid_read(hw_closid, rmid, rr->evtid, &tval,
+				   rr->arch_mon_ctx))
 		return;
 
 	chunks = tval - m->prev_bw_msr;

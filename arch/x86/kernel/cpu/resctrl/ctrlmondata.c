@@ -550,7 +550,9 @@ void mon_event_read(struct rmid_read *rr, struct rdt_domain *d,
 	rr->val = 0;
 	rr->first = first;
 
+	rr->arch_mon_ctx = resctrl_arch_mon_ctx_alloc();
 	smp_call_function_any(&d->cpu_mask, mon_event_count, rr, 1);
+	resctrl_arch_mon_ctx_free(rr->arch_mon_ctx);
 }
 
 int rdtgroup_mondata_show(struct seq_file *m, void *arg)
