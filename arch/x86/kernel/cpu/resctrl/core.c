@@ -32,9 +32,6 @@
  */
 DEFINE_MUTEX(domain_list_lock);
 
-/* Mutex to protect rdtgroup access. */
-DEFINE_MUTEX(rdtgroup_mutex);
-
 bool rdt_cdp_enabled;
 
 /*
@@ -184,14 +181,6 @@ static inline void cache_alloc_hsw_probe(void)
 	r->alloc_capable = true;
 
 	rdt_alloc_capable = true;
-}
-
-bool is_mba_sc(struct rdt_resource *r)
-{
-	if (!r)
-		r = resctrl_arch_get_resource(RDT_RESOURCE_MBA);
-
-	return r->membw.mba_sc;
 }
 
 /*
@@ -724,6 +713,14 @@ static __init bool get_rdt_alloc_resources(void)
 		ret = true;
 
 	return ret;
+}
+
+static int rdt_get_mon_l3_config(struct rdt_resource *r)
+{
+	INIT_LIST_HEAD(&r->evt_list);
+	r->mon_capable = true;
+
+	return 0;
 }
 
 static __init bool get_rdt_mon_resources(void)
