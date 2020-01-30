@@ -342,10 +342,16 @@ void mon_event_count(void *info)
 	struct rdtgroup *rdtgrp, *entry;
 	struct rmid_read *rr = info;
 	struct list_head *head;
+	u32 rmid;
 
 	rdtgrp = rr->rgrp;
+	rmid = rdtgrp->mon.rmid;
 
-	if (__mon_event_count(rdtgrp->mon.rmid, rr))
+	if (IS_ENABLED(CONFIG_RESCTRL_FS_READ_RMID_SET) &&
+	    rdtgrp->type == RDTCTRL_GROUP)
+		rmid = RESCTRL_READ_ALL_RMID;
+
+	if (__mon_event_count(rmid, rr) || rmid == RESCTRL_READ_ALL_RMID)
 		return;
 
 	/*
@@ -355,7 +361,7 @@ void mon_event_count(void *info)
 
 	if (rdtgrp->type == RDTCTRL_GROUP) {
 		list_for_each_entry(entry, head, mon.crdtgrp_list) {
-			if (__mon_event_count(entry->mon.rmid, rr))
+			if (__mon_event_count(rmid, rr))
 				return;
 		}
 	}

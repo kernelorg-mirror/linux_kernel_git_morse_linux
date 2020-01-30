@@ -28,6 +28,13 @@ int proc_resctrl_show(struct seq_file *m,
 #define MBA_MAX_MBPS   U32_MAX
 
 /*
+ * If the architecture can read all rmid for a closid in one go,
+ * define CONFIG_RESCTRL_FS_READ_RMID_SET, this value will be passed
+ * to resctrl_arch_rmid_read when we want that behaviour.
+ */
+#define RESCTRL_READ_ALL_RMID	~0
+
+/*
  * The longest name we expect in the schemata file:
  */
 #define RESCTRL_NAME_LEN	7
