@@ -1867,6 +1867,8 @@ static int set_cache_qos_cfg(int level, bool enable)
 	smp_call_function_many(cpu_mask, update, &enable, 1);
 	put_cpu();
 
+	rdt_cdp_enabled = enable;
+
 	free_cpumask_var(cpu_mask);
 
 	return 0;

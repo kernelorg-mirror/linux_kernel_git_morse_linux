@@ -28,6 +28,8 @@
 /* Mutex to protect rdtgroup access. */
 DEFINE_MUTEX(rdtgroup_mutex);
 
+bool rdt_cdp_enabled;
+
 /*
  * The cached resctrl_pqr_state is strictly per CPU and can never be
  * updated from a remote CPU. Functions which modify the state
@@ -558,20 +560,17 @@ static int domain_setup_mon_state(struct rdt_resource *r, struct rdt_domain *d)
 /* resctrl's use of CDP may have changed while this domain slept */
 static void domain_reconfigure_cdp(void)
 {
-	bool cdp_enable;
 	struct rdt_hw_resource *r;
 
 	lockdep_assert_held(&rdtgroup_mutex);
 
 	r = &rdt_resources_all[RDT_RESOURCE_L2];
-	cdp_enable = !r->resctrl.alloc_enabled;
 	if (r->resctrl.alloc_capable)
-		l2_qos_cfg_update(&cdp_enable);
+		l2_qos_cfg_update(&rdt_cdp_enabled);
 
 	r = &rdt_resources_all[RDT_RESOURCE_L3];
-	cdp_enable = !r->resctrl.alloc_enabled;
 	if (r->resctrl.alloc_capable)
-		l3_qos_cfg_update(&cdp_enable);
+		l3_qos_cfg_update(&rdt_cdp_enabled);
 }
 
 /*
