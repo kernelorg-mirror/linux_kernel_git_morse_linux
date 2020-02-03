@@ -43,6 +43,33 @@ u32 mpam_resctrl_num_closid(void)
 	return min((u32)mpam_sysprops.max_partid, (u32)RESCTRL_MAX_CLOSID);
 }
 
+u32 mpam_resctrl_num_rmid(void)
+{
+	/*
+	 * num_rmid is not equivalent between RDT and MPAM systems.
+	 *
+	 * With RDT, rmid is an independent number, each closid is allocate one
+	 * or more. With MPAM, pmg is effectively an extention to the partid
+	 * space. Each partid has the platforms number of pmg, whether it uses
+	 * them or not.
+	 *
+	 * The value we pick here is exposed to user-space.
+	 * max_partid*max_pmg is the size of the rmid space, but you can't use
+	 * them all for a specific task. Even with zero pmg bits, we can have
+	 * one rmid per closid. Exporting either max_partid or max_pmg would let
+	 * user-space believe it can have that many rmid, either as separate
+	 * control groups, or all in one monitor group. Unless we know which way
+	 * the value will be used, there no correct answer.
+	 *
+	 * Export: 1. You can have at least this many rmid.
+	 *
+	 * TODO: this would be fixed by an ABI break, exposing how many more
+	 * control or monitor groups resctrl can create. For MPAM the number
+	 * of monitor groups left varies per control group.
+	 */
+	return 1;
+}
+
 struct rdt_resource *mpam_resctrl_get_resource(enum resctrl_resource_level l)
 {
 	if (l >= RDT_NUM_RESOURCES)

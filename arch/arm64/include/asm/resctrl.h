@@ -17,6 +17,11 @@ typedef struct { u16 val; } hw_closid_t;
 #define resctrl_arch_is_mbm_total_enabled()	false
 #define resctrl_arch_is_mbm_local_enabled()	false
 
+static inline u32 resctrl_arch_system_num_rmid(void)
+{
+	return mpam_resctrl_num_rmid();
+}
+
 static inline u32 resctrl_arch_system_num_closid(void)
 {
 	return mpam_resctrl_num_closid();
