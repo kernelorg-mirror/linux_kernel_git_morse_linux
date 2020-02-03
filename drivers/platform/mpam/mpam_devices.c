@@ -445,6 +445,70 @@ static int mpam_device_probe(struct mpam_device *dev)
 	return 0;
 }
 
+/* Only supports CSU */
+int mpam_device_csu_read(struct mpam_device *dev, struct mon_cfg *ctx, u64 *val)
+{
+	unsigned long flags;
+	u32 csu, ctl, ctl_static, flt, cur_ctl, cur_flt;
+
+	if (mpam_broken)
+		return -EIO;
+
+	if (!mpam_has_feature(mpam_feat_msmon_csu, dev->features))
+		return -EOPNOTSUPP;
+
+	spin_lock_irqsave(&dev->lock, flags);
+
+	mpam_write_reg(dev, MSMON_CFG_MON_SEL, ctx->mon);
+	wmb(); /* subsequent writes must be applied to this mon */
+
+	/*
+	 * We don't bother with capture as we don't expose a way of measuring
+	 * multiple partid:pmg with a single capture.
+	 */
+	ctl = MSMON_CFG_x_CTL_MATCH_PARTID;
+	if (ctx->match_pmg)
+		ctl |= MSMON_CFG_x_CTL_MATCH_PMG;
+	flt = ctx->partid |
+	      (ctx->pmg << MSMON_CFG_MBWU_FLT_PMG_SHIFT);
+
+	/*
+	 * We read the existing configuration to avoid re-writing the same
+	 * values.
+	 */
+	cur_flt = mpam_read_reg(dev, MSMON_CFG_CSU_FLT);
+	cur_ctl = mpam_read_reg(dev, MSMON_CFG_CSU_CTL);
+
+	ctl_static = MSMON_CFG_MBWU_CTL_TYPE_CSU | MSMON_CFG_x_CTL_EN;
+	if (cur_flt != flt || cur_ctl != (ctl | ctl_static)) {
+		mpam_write_reg(dev, MSMON_CFG_CSU_FLT, flt);
+
+		/*
+		 * Write the ctl with the enable bit cleared, reset the counter, then
+		 * enable counter.
+		 */
+		mpam_write_reg(dev, MSMON_CFG_CSU_CTL, ctl);
+		wmb();
+
+		mpam_write_reg(dev, MSMON_CSU, 0);
+		wmb();
+
+		ctl |= MSMON_CFG_x_CTL_EN;
+		mpam_write_reg(dev, MSMON_CFG_CSU_CTL, ctl);
+		wmb();
+	}
+
+	csu = mpam_read_reg(dev, MSMON_CSU);
+	spin_unlock_irqrestore(&dev->lock, flags);
+
+	if (csu & MSMON___NRDY)
+		return -EBUSY;
+
+	*val = csu & MSMON___VALUE;
+
+	return 0;
+}
+
 static int __allocate_component_cfg(struct mpam_component *comp)
 {
 	lockdep_assert_held(&mpam_devices_lock);	// reading mpam_sysprop

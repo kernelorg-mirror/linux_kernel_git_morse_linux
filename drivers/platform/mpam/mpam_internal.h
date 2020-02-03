@@ -252,6 +252,15 @@ struct mpam_component_sync_args
 int mpam_component_config_sync(struct mpam_component *comp,
 			       struct mpam_component_sync_args *sync_args);
 
+struct mon_cfg {
+	u16	mon;
+	u8	pmg;
+	bool	match_pmg;
+	u32	partid;
+};
+
+int mpam_device_csu_read(struct mpam_device *dev, struct mon_cfg *ctx, u64 *val);
+
 int mpam_resctrl_cpu_online(unsigned int cpu);
 int mpam_resctrl_cpu_offline(unsigned int cpu);
 
