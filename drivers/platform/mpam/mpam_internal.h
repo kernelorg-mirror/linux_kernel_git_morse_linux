@@ -10,6 +10,13 @@
 #include <linux/resctrl.h>
 #include <linux/sizes.h>
 
+/* System wide properties */
+struct mpam_sysprops {
+	u16 max_partid;
+	u8 max_pmg;
+};
+extern struct mpam_sysprops mpam_sysprops;
+
 /*
  * When we compact the supported features, we don't care what they are.
  * Storing them as a bitmap makes life easy.
@@ -80,6 +87,10 @@ struct mpam_device
 	phys_addr_t             hwpage_address;
 	void __iomem *          mapped_hwpage;
 	bool			probed;
+
+	u16			max_partid;
+	u8			max_pmg;
+
 	mpam_features_t		features;
 	u16			cpbm_wd;
 	u16			mbw_pbm_bits;
@@ -132,6 +143,9 @@ struct mpam_class
 
 	u8			level;
 	enum mpam_class_types	type;
+
+	u16			max_partid;
+	u8			max_pmg;
 
 	/* Once enabled, the common features */
 	mpam_features_t		features;

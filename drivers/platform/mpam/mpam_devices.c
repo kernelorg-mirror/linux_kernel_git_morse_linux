@@ -39,6 +39,8 @@ LIST_HEAD(mpam_classes);
 static DEFINE_MUTEX(mpam_cpuhp_lock);
 static int mpam_cpuhp_state;
 
+struct mpam_sysprops mpam_sysprops;
+
 /*
  * mpam is enabled once all devices have been probed from CPU online callbacks,
  * scheduled via this work_struct.
@@ -268,6 +270,14 @@ void __init mpam_device_set_overflow_irq(struct mpam_device *dev, u32 irq,
 	spin_unlock(&dev->lock);
 }
 
+static void mpam_probe_update_sysprops(u16 max_partid, u8 max_pmg)
+{
+	lockdep_assert_held(&mpam_devices_lock);
+
+	mpam_sysprops.max_partid = min(mpam_sysprops.max_partid, max_partid);
+	mpam_sysprops.max_pmg = min(mpam_sysprops.max_pmg, max_pmg);
+}
+
 static int mpam_device_probe(struct mpam_device *dev)
 {
 	u32 hwfeatures;
@@ -279,6 +289,8 @@ static int mpam_device_probe(struct mpam_device *dev)
 	}
 
 	hwfeatures = mpam_read_reg(dev, MPAMF_IDR);
+	dev->max_partid = hwfeatures & MPAMF_IDR_PARTID_MAX_MASK;
+	dev->max_pmg = (hwfeatures & MPAMF_IDR_PMG_MAX_MASK) >> MPAMF_IDR_PMG_MAX_SHIFT;
 
 	/* Cache Portion partitioning */
 	if (hwfeatures & MPAMF_IDR_HAS_CPOR_PART) {
@@ -352,6 +364,11 @@ static void __device_class_feature_mismatch(struct mpam_device *dev,
 {
 	lockdep_assert_held(&mpam_devices_lock); /* we modify class */
 
+	if (class->max_partid < dev->max_partid)
+		class->max_partid = dev->max_partid;
+	if (class->max_pmg < dev->max_pmg)
+		class->max_pmg = dev->max_pmg;
+
 	if (class->cpbm_wd != dev->cpbm_wd)
 		mpam_clear_feature(mpam_feat_cpor_part, &class->features);
 	if (class->mbw_pbm_bits != dev->mbw_pbm_bits)
@@ -397,6 +414,8 @@ static void mpam_enable_squash_features(void)
 				break;
 
 			spin_lock(&dev->lock);
+			class->max_partid = dev->max_partid;
+			class->max_pmg = dev->max_pmg;
 			class->features = dev->features;
 			class->cpbm_wd = dev->cpbm_wd;
 			class->mbw_pbm_bits = dev->mbw_pbm_bits;
@@ -414,6 +433,8 @@ static void mpam_enable_squash_features(void)
 				spin_unlock(&dev->lock);
 			}
 		}
+
+		mpam_probe_update_sysprops(class->max_partid, class->max_pmg);
 	}
 }
 
@@ -453,6 +474,9 @@ int __init mpam_discovery_start(void)
 {
 	if (!mpam_cpus_have_feature())
 		return -EOPNOTSUPP;
+
+	mpam_sysprops.max_partid = mpam_cpu_max_partids();
+	mpam_sysprops.max_pmg = mpam_cpu_max_pmgs();
 
 	INIT_WORK(&mpam_enable_work, mpam_enable);
 
