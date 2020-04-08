@@ -364,6 +364,7 @@ struct rdt_parse_data {
 
 /**
  * struct rdt_hw_resource - arch private attributes of a resctrl resource
+ * @conf_type:		The type that should be used when configuring. temporary
  * @resctrl:		Attributes of the resource used directly by resctrl.
  * @num_closid:		Maximum number of closid this hardware can support.
  * @msr_base:		Base MSR address for CBMs
@@ -376,6 +377,7 @@ struct rdt_parse_data {
  * msr_update and msr_base.
  */
 struct rdt_hw_resource {
+	enum resctrl_conf_type	conf_type;
 	struct rdt_resource	resctrl;
 	int			num_closid;
 	unsigned int		msr_base;
