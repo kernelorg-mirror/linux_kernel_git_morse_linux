@@ -2141,6 +2141,7 @@ static int create_schemata_list(void)
 
 		s->res = r;
 		s->num_closid = resctrl_arch_get_num_closid(r);
+		s->conf_type = resctrl_to_arch_res(r)->conf_type;
 
 		INIT_LIST_HEAD(&s->list);
 		list_add(&s->list, &resctrl_all_schema);

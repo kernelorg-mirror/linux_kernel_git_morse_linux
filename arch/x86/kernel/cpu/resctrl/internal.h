@@ -367,6 +367,7 @@ struct rdt_parse_data {
  * @mon_scale:		cqm counter * mon_scale = occupancy in bytes
  */
 struct rdt_hw_resource {
+	enum resctrl_conf_type	conf_type;
 	struct rdt_resource     resctrl;
 
 	int			num_closid;
