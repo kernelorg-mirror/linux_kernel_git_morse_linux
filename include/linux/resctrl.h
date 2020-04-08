@@ -15,6 +15,12 @@ int proc_resctrl_show(struct seq_file *m,
 
 #endif
 
+enum resctrl_conf_type {
+	CDP_BOTH,
+	CDP_CODE,
+	CDP_DATA,
+};
+
 /**
  * struct rdt_domain - group of CPUs sharing a resctrl resource
  * @list:		all instances of this resource
@@ -157,10 +163,12 @@ struct rdt_resource {
 /**
  * struct resctrl_schema - configuration abilities of a resource presented to user-space
  * @list:	Member of resctrl's schema list
+ * @conf_type:	Whether this entry is for code/data/both
  * @res:	The rdt_resource for this entry
  */
 struct resctrl_schema {
 	struct list_head		list;
+	enum resctrl_conf_type		conf_type;
 	struct rdt_resource		*res;
 };
 #endif /* _RESCTRL_H */

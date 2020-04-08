@@ -361,12 +361,14 @@ struct rdt_parse_data {
 
 /**
  * struct rdt_hw_resource - hw attributes of a resctrl resource
+ * @conf_type:		The type that should be used when configuring. temporary
  * @num_closid:		Number of CLOSIDs available.
  * @msr_base:		Base MSR address for CBMs
  * @msr_update:		Function pointer to update QOS MSRs
  * @mon_scale:		cqm counter * mon_scale = occupancy in bytes
  */
 struct rdt_hw_resource {
+	enum resctrl_conf_type	conf_type;
 	struct rdt_resource	resctrl;
 	int			num_closid;
 	unsigned int		msr_base;
