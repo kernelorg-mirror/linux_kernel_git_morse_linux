@@ -164,12 +164,14 @@ struct rdt_resource {
 /**
  * struct resctrl_schema - configuration abilities of a resource presented to user-space
  * @list:	Member of resctrl's schema list
+ * @name:	Name to use in "schemata" file
  * @conf_type:	Whether this entry is for code/data/both
  * @res:	The rdt_resource for this entry
  * @num_closid:	Number of CLOSIDs available for this resource
  */
 struct resctrl_schema {
 	struct list_head		list;
+	char				name[8];
 	enum resctrl_conf_type		conf_type;
 	struct rdt_resource		*res;
 	u32				num_closid;
