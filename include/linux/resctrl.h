@@ -15,6 +15,11 @@ int proc_resctrl_show(struct seq_file *m,
 
 #endif
 
+/*
+ * The longest name we expect in the schemata file:
+ */
+#define RESCTRL_NAME_LEN	7
+
 enum resctrl_conf_type {
 	CDP_BOTH,
 	CDP_CODE,
@@ -172,12 +177,14 @@ struct rdt_resource {
 
 /**
  * @list:	Member of resctrl's schema list
+ * @names:	Name to use in "schemata" file
  * @conf_type:	Type of configuration, e.g. code/data/both
  * @res:	The rdt_resource for this entry
  * @num_closid	Number of CLOSIDs available for this resource
  */
 struct resctrl_schema {
 	struct list_head		list;
+	char				name[RESCTRL_NAME_LEN];
 	enum resctrl_conf_type		conf_type;
 	struct rdt_resource		*res;
 	u32				num_closid;
