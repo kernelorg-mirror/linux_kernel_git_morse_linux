@@ -369,11 +369,15 @@ static void rdt_get_cdp_config(int level, int type)
 	r->cache.shareable_bits = r_l->cache.shareable_bits;
 	r->data_width = (r->cache.cbm_len + 3) / 4;
 	r->alloc_capable = true;
+	hw_res_l->cdp_capable = true;
+	hw_res->cdp_capable = true;
 	/*
 	 * By default, CDP is disabled. CDP can be enabled by mount parameter
 	 * "cdp" during resctrl file system mount time.
 	 */
 	r->alloc_enabled = false;
+	hw_res_l->cdp_enabled = false;
+	hw_res->cdp_enabled = false;
 }
 
 static void rdt_get_cdp_l3_config(void)
