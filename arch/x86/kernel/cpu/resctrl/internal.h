@@ -366,6 +366,8 @@ struct rdt_parse_data {
  * @msr_base:		Base MSR address for CBMs
  * @msr_update:		Function pointer to update QOS MSRs
  * @mon_scale:		cqm counter * mon_scale = occupancy in bytes
+ * @cdp_enabled:	CDP state of this resource
+ * @cdp_capable:	Is the CDP feature available on this resource
  */
 struct rdt_hw_resource {
 	enum resctrl_conf_type	conf_type;
@@ -376,6 +378,8 @@ struct rdt_hw_resource {
 				 struct rdt_resource *r);
 	unsigned int		mon_scale;
 	unsigned int		mbm_width;
+	bool			cdp_enabled;
+	bool			cdp_capable;
 };
 
 static inline struct rdt_hw_resource *resctrl_to_arch_res(struct rdt_resource *r)
@@ -396,7 +400,7 @@ DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 
 extern struct dentry *debugfs_resctrl;
 
-enum {
+enum resctrl_res_level {
 	RDT_RESOURCE_L3,
 	RDT_RESOURCE_L3DATA,
 	RDT_RESOURCE_L3CODE,
@@ -416,6 +420,13 @@ static inline struct rdt_resource *resctrl_inc(struct rdt_resource *res)
 	hw_res++;
 	return &hw_res->resctrl;
 }
+
+static inline bool resctrl_arch_get_cdp_enabled(enum resctrl_res_level l)
+{
+	return rdt_resources_all[l].cdp_enabled;
+}
+
+int resctrl_arch_set_cdp_enabled(enum resctrl_res_level l, bool enable);
 
 #define for_each_rdt_resource(r)					      \
 	for (r = &rdt_resources_all[0].resctrl;				      \
