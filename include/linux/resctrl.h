@@ -163,4 +163,7 @@ struct rdt_resource {
 
 };
 
+/* The number of closid supported by this resource regardless of CDP */
+u32 resctrl_arch_get_num_closid(struct rdt_resource *r);
+
 #endif /* _RESCTRL_H */

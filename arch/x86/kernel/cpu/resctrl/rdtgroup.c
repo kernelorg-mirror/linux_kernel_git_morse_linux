@@ -100,15 +100,13 @@ int closids_supported(void)
 
 static void closid_init(void)
 {
-	struct rdt_hw_resource *hw_res;
+	u32 rdt_min_closid = 32;
 	struct rdt_resource *r;
-	int rdt_min_closid = 32;
 
 	/* Compute rdt_min_closid across all resources */
-	for_each_alloc_enabled_rdt_resource(r) {
-		hw_res = resctrl_to_arch_res(r);
-		rdt_min_closid = min(rdt_min_closid, hw_res->num_closid);
-	}
+	for_each_alloc_enabled_rdt_resource(r)
+		rdt_min_closid = min(rdt_min_closid,
+				     resctrl_arch_get_num_closid(r));
 
 	closid_free_map = BIT_MASK(rdt_min_closid) - 1;
 
@@ -847,10 +845,8 @@ static int rdt_num_closids_show(struct kernfs_open_file *of,
 				struct seq_file *seq, void *v)
 {
 	struct rdt_resource *r = of->kn->parent->priv;
-	struct rdt_hw_resource *hw_res;
 
-	hw_res = resctrl_to_arch_res(r);
-	seq_printf(seq, "%d\n", hw_res->num_closid);
+	seq_printf(seq, "%d\n", resctrl_arch_get_num_closid(r));
 	return 0;
 }
 
