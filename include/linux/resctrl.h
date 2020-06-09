@@ -166,10 +166,12 @@ struct rdt_resource {
 /**
  * @list:	Member of resctrl's schema list
  * @res:	The rdt_resource for this entry
+ * @num_closid	Number of CLOSIDs available for this resource
  */
 struct resctrl_schema {
 	struct list_head		list;
 	struct rdt_resource		*res;
+	u32				num_closid;
 };
 
 /* The number of closid supported by this resource regardless of CDP */

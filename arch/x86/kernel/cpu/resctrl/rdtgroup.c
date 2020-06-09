@@ -103,13 +103,12 @@ int closids_supported(void)
 
 static void closid_init(void)
 {
+	struct resctrl_schema *s;
 	u32 rdt_min_closid = 32;
-	struct rdt_resource *r;
 
 	/* Compute rdt_min_closid across all resources */
-	for_each_alloc_enabled_rdt_resource(r)
-		rdt_min_closid = min(rdt_min_closid,
-				     resctrl_arch_get_num_closid(r));
+	list_for_each_entry(s, &resctrl_all_schema, list)
+		rdt_min_closid = min(rdt_min_closid, s->num_closid);
 
 	closid_free_map = BIT_MASK(rdt_min_closid) - 1;
 
@@ -848,9 +847,8 @@ static int rdt_num_closids_show(struct kernfs_open_file *of,
 				struct seq_file *seq, void *v)
 {
 	struct resctrl_schema *s = of->kn->parent->priv;
-	struct rdt_resource *r = s->res;
 
-	seq_printf(seq, "%d\n", resctrl_arch_get_num_closid(r));
+	seq_printf(seq, "%d\n", s->num_closid);
 	return 0;
 }
 
@@ -2142,6 +2140,7 @@ static int create_schemata_list(void)
 			return -ENOMEM;
 
 		s->res = r;
+		s->num_closid = resctrl_arch_get_num_closid(r);
 
 		INIT_LIST_HEAD(&s->list);
 		list_add(&s->list, &resctrl_all_schema);
