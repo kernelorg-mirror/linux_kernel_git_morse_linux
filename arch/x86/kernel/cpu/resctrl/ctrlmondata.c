@@ -246,12 +246,17 @@ next:
 	return -EINVAL;
 }
 
-static unsigned int cbm_idx(struct rdt_resource *r, unsigned int closid)
+static u32 get_config_index(u32 closid, enum resctrl_conf_type type)
 {
-	if (r->rid == RDT_RESOURCE_MBA)
+	switch (type) {
+	default:
+	case CDP_BOTH:
 		return closid;
-
-	return closid * r->cache.cbm_idx_mult + r->cache.cbm_idx_offset;
+	case CDP_CODE:
+		return (closid * 2) + 1;
+	case CDP_DATA:
+		return (closid * 2);
+	}
 }
 
 static bool apply_config(struct rdt_hw_domain *hw_dom,
@@ -297,7 +302,7 @@ int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid)
 			if (!cfg->have_new_ctrl)
 				continue;
 
-			idx = cbm_idx(r, closid);
+			idx = get_config_index(closid, t);
 			if (!apply_config(hw_dom, cfg, idx, cpu_mask, mba_sc))
 				continue;
 
@@ -430,7 +435,7 @@ void resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 			     u32 closid, enum resctrl_conf_type type, u32 *value)
 {
 	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
-	u32 idx = cbm_idx(r, closid);
+	u32 idx = get_config_index(closid, type);
 
 	if (!is_mba_sc(r))
 		*value = hw_dom->ctrl_val[idx];
