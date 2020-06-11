@@ -246,35 +246,47 @@ next:
 	return -EINVAL;
 }
 
-static void apply_config(struct rdt_hw_domain *hw_dom,
-			 struct resctrl_staged_config *cfg, int closid,
+static unsigned int cbm_idx(struct rdt_resource *r, unsigned int closid)
+{
+	if (r->rid == RDT_RESOURCE_MBA)
+		return closid;
+
+	return closid * r->cache.cbm_idx_mult + r->cache.cbm_idx_offset;
+}
+
+static bool apply_config(struct rdt_hw_domain *hw_dom,
+			 struct resctrl_staged_config *cfg, u32 idx,
 			 cpumask_var_t cpu_mask, bool mba_sc)
 {
 	struct rdt_domain *dom = &hw_dom->resctrl;
 	u32 *dc = !mba_sc ? hw_dom->ctrl_val : hw_dom->mbps_val;
 
-	if (cfg->new_ctrl != dc[closid]) {
+	if (cfg->new_ctrl != dc[idx]) {
 		cpumask_set_cpu(cpumask_any(&dom->cpu_mask), cpu_mask);
-		dc[closid] = cfg->new_ctrl;
+		dc[idx] = cfg->new_ctrl;
+
+		return true;
 	}
+
+	return false;
 }
 
 int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid)
 {
 	struct resctrl_staged_config *cfg;
 	struct rdt_hw_domain *hw_dom;
+	bool msr_param_init = false;
 	struct msr_param msr_param;
 	enum resctrl_conf_type t;
 	cpumask_var_t cpu_mask;
 	struct rdt_domain *d;
 	bool mba_sc;
 	int cpu;
+	u32 idx;
 
 	if (!zalloc_cpumask_var(&cpu_mask, GFP_KERNEL))
 		return -ENOMEM;
 
-	msr_param.low = closid;
-	msr_param.high = msr_param.low + 1;
 	msr_param.res = r;
 
 	mba_sc = is_mba_sc(r);
@@ -285,9 +297,22 @@ int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid)
 			if (!cfg->have_new_ctrl)
 				continue;
 
-			apply_config(hw_dom, cfg, closid, cpu_mask, mba_sc);
+			idx = cbm_idx(r, closid);
+			if (!apply_config(hw_dom, cfg, idx, cpu_mask, mba_sc))
+				continue;
+
+			if (!msr_param_init) {
+				msr_param.low = idx;
+				msr_param.high = idx;
+				msr_param_init = true;
+			} else {
+				msr_param.low = min(msr_param.low, idx);
+				msr_param.high = max(msr_param.high, idx);
+			}
 		}
 	}
+
+	msr_param.high =+ 1;
 
 	/*
 	 * Avoid writing the control msr with control values when
@@ -405,11 +430,12 @@ void resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 			     u32 closid, enum resctrl_conf_type type, u32 *value)
 {
 	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
+	u32 idx = cbm_idx(r, closid);
 
 	if (!is_mba_sc(r))
-		*value = hw_dom->ctrl_val[closid];
+		*value = hw_dom->ctrl_val[idx];
 	else
-		*value = hw_dom->mbps_val[closid];
+		*value = hw_dom->mbps_val[idx];
 }
 
 static void show_doms(struct seq_file *s, struct resctrl_schema *schema, int closid)
