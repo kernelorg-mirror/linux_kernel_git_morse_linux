@@ -78,42 +78,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 		.msr_base		= MSR_IA32_L3_CBM_BASE,
 		.msr_update		= cat_wrmsr,
 	},
-	[RDT_RESOURCE_L3DATA] =
-	{
-		.conf_type			= CDP_DATA,
-		.resctrl = {
-			.rid			= RDT_RESOURCE_L3DATA,
-			.name			= "L3DATA",
-			.cache_level		= 3,
-			.cache = {
-				.min_cbm_bits	= 1,
-			},
-			.domains		= domain_init(RDT_RESOURCE_L3DATA),
-			.parse_ctrlval		= parse_cbm,
-			.format_str		= "%d=%0*x",
-			.fflags			= RFTYPE_RES_CACHE,
-		},
-		.msr_base		= MSR_IA32_L3_CBM_BASE,
-		.msr_update		= cat_wrmsr,
-	},
-	[RDT_RESOURCE_L3CODE] =
-	{
-		.conf_type			= CDP_CODE,
-		.resctrl = {
-			.rid			= RDT_RESOURCE_L3CODE,
-			.name			= "L3CODE",
-			.cache_level		= 3,
-			.cache = {
-				.min_cbm_bits	= 1,
-			},
-			.domains		= domain_init(RDT_RESOURCE_L3CODE),
-			.parse_ctrlval		= parse_cbm,
-			.format_str		= "%d=%0*x",
-			.fflags			= RFTYPE_RES_CACHE,
-		},
-		.msr_base		= MSR_IA32_L3_CBM_BASE,
-		.msr_update		= cat_wrmsr,
-	},
 	[RDT_RESOURCE_L2] =
 	{
 		.conf_type			= CDP_BOTH,
@@ -125,42 +89,6 @@ struct rdt_hw_resource rdt_resources_all[] = {
 				.min_cbm_bits	= 1,
 			},
 			.domains		= domain_init(RDT_RESOURCE_L2),
-			.parse_ctrlval		= parse_cbm,
-			.format_str		= "%d=%0*x",
-			.fflags			= RFTYPE_RES_CACHE,
-		},
-		.msr_base		= MSR_IA32_L2_CBM_BASE,
-		.msr_update		= cat_wrmsr,
-	},
-	[RDT_RESOURCE_L2DATA] =
-	{
-		.conf_type			= CDP_DATA,
-		.resctrl = {
-			.rid			= RDT_RESOURCE_L2DATA,
-			.name			= "L2DATA",
-			.cache_level		= 2,
-			.cache = {
-				.min_cbm_bits	= 1,
-			},
-			.domains		= domain_init(RDT_RESOURCE_L2DATA),
-			.parse_ctrlval		= parse_cbm,
-			.format_str		= "%d=%0*x",
-			.fflags			= RFTYPE_RES_CACHE,
-		},
-		.msr_base		= MSR_IA32_L2_CBM_BASE,
-		.msr_update		= cat_wrmsr,
-	},
-	[RDT_RESOURCE_L2CODE] =
-	{
-		.conf_type			= CDP_CODE,
-		.resctrl = {
-			.rid			= RDT_RESOURCE_L2CODE,
-			.name			= "L2CODE",
-			.cache_level		= 2,
-			.cache = {
-				.min_cbm_bits	= 1,
-			},
-			.domains		= domain_init(RDT_RESOURCE_L2CODE),
 			.parse_ctrlval		= parse_cbm,
 			.format_str		= "%d=%0*x",
 			.fflags			= RFTYPE_RES_CACHE,
@@ -339,40 +267,16 @@ static void rdt_get_cache_alloc_cfg(int idx, struct rdt_resource *r)
 	r->alloc_enabled = true;
 }
 
-static void rdt_get_cdp_config(int level, int type)
-{
-	struct rdt_resource *r_l = &rdt_resources_all[level].resctrl;
-	struct rdt_hw_resource *hw_res_l = resctrl_to_arch_res(r_l);
-	struct rdt_resource *r = &rdt_resources_all[type].resctrl;
-	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
-
-	hw_res->num_closid = hw_res_l->num_closid;
-	r->cache.cbm_len = r_l->cache.cbm_len;
-	r->default_ctrl = r_l->default_ctrl;
-	r->cache.shareable_bits = r_l->cache.shareable_bits;
-	r->data_width = (r->cache.cbm_len + 3) / 4;
-	r->alloc_capable = true;
-	hw_res_l->cdp_capable = true;
-	hw_res->cdp_capable = true;
-	/*
-	 * By default, CDP is disabled. CDP can be enabled by mount parameter
-	 * "cdp" during resctrl file system mount time.
-	 */
-	r->alloc_enabled = false;
-	hw_res_l->cdp_enabled = false;
-	hw_res->cdp_enabled = false;
-}
-
 static void rdt_get_cdp_l3_config(void)
 {
-	rdt_get_cdp_config(RDT_RESOURCE_L3, RDT_RESOURCE_L3DATA);
-	rdt_get_cdp_config(RDT_RESOURCE_L3, RDT_RESOURCE_L3CODE);
+	rdt_resources_all[RDT_RESOURCE_L3].cdp_capable = true;
+	rdt_resources_all[RDT_RESOURCE_L3].cdp_enabled = false;
 }
 
 static void rdt_get_cdp_l2_config(void)
 {
-	rdt_get_cdp_config(RDT_RESOURCE_L2, RDT_RESOURCE_L2DATA);
-	rdt_get_cdp_config(RDT_RESOURCE_L2, RDT_RESOURCE_L2CODE);
+	rdt_resources_all[RDT_RESOURCE_L2].cdp_capable = true;
+	rdt_resources_all[RDT_RESOURCE_L2].cdp_enabled = false;
 }
 
 static void
@@ -509,72 +413,6 @@ void setup_default_ctrlval(struct rdt_resource *r, u32 *dc, u32 *dm)
 	}
 }
 
-/*
- * temporary.
- * This relies on L2 or L3 being allocated before their CODE/DATA aliases
- */
-static u32 *alloc_ctrlval_array(struct rdt_resource *r, struct rdt_domain *d,
-				bool mba_sc)
-{
-	/* these are for the underlying hardware, they may not match r/d */
-	struct rdt_domain *underlying_domain;
-	struct rdt_hw_resource *hw_res;
-	struct rdt_hw_domain *hw_dom;
-	bool remapped;
-
-	switch (r->rid) {
-	case RDT_RESOURCE_L3DATA:
-	case RDT_RESOURCE_L3CODE:
-		hw_res = &rdt_resources_all[RDT_RESOURCE_L3];
-		remapped = true;
-		break;
-	case RDT_RESOURCE_L2DATA:
-	case RDT_RESOURCE_L2CODE:
-		hw_res = &rdt_resources_all[RDT_RESOURCE_L2];
-		remapped = true;
-		break;
-	default:
-		hw_res = resctrl_to_arch_res(r);
-		remapped = false;
-	}
-
-	/*
-	 * If we changed the resource, we need to search for the underlying
-	 * domain. Doing this for all resources would make it tricky to add the
-	 * first resource, as domains aren't added to a resource list until
-	 * after the ctrlval arrays have been allocated.
-	 */
-	if (remapped)
-		underlying_domain = rdt_find_domain(&hw_res->resctrl, d->id,
-						    NULL);
-	else
-		underlying_domain = d;
-	hw_dom = resctrl_to_arch_dom(underlying_domain);
-
-	if (mba_sc) {
-		if (hw_dom->mbps_val)
-			return hw_dom->mbps_val;
-		return kmalloc_array(hw_res->num_closid,
-				     sizeof(*hw_dom->mbps_val), GFP_KERNEL);
-	} else {
-		if (hw_dom->ctrl_val)
-			return hw_dom->ctrl_val;
-		return kmalloc_array(hw_res->num_closid,
-				     sizeof(*hw_dom->ctrl_val), GFP_KERNEL);
-	}
-}
-
-/* Only kfree() for L2/L3, not the CODE/DATA aliases */
-static void free_ctrlval_arrays(struct rdt_resource *r, struct rdt_domain *d)
-{
-	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
-
-	if (r->rid == RDT_RESOURCE_L2 || r->rid == RDT_RESOURCE_L3) {
-		kfree(hw_dom->ctrl_val);
-		kfree(hw_dom->mbps_val);
-	}
-}
-
 static int domain_setup_ctrlval(struct rdt_resource *r, struct rdt_domain *d)
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
@@ -582,14 +420,16 @@ static int domain_setup_ctrlval(struct rdt_resource *r, struct rdt_domain *d)
 	struct msr_param m;
 	u32 *dc, *dm;
 
-	dc = alloc_ctrlval_array(r, d, false);
+	dc = kmalloc_array(hw_res->num_closid, sizeof(*hw_dom->ctrl_val),
+			   GFP_KERNEL);
 	if (!dc)
 		return -ENOMEM;
 	hw_dom->ctrl_val = dc;
 
-	dm = alloc_ctrlval_array(r, d, true);
+	dm = kmalloc_array(hw_res->num_closid, sizeof(*hw_dom->mbps_val),
+			   GFP_KERNEL);
 	if (!dm) {
-		free_ctrlval_arrays(r, d);
+		kfree(dc);
 		return -ENOMEM;
 	}
 	hw_dom->mbps_val = dm;
@@ -743,7 +583,8 @@ static void domain_remove_cpu(int cpu, struct rdt_resource *r)
 		if (d->plr)
 			d->plr->d = NULL;
 
-		free_ctrlval_arrays(r, d);
+		kfree(hw_dom->ctrl_val);
+		kfree(hw_dom->mbps_val);
 		bitmap_free(d->rmid_busy_llc);
 		kfree(d->mbm_total);
 		kfree(d->mbm_local);
@@ -1014,11 +855,7 @@ static __init void rdt_init_res_defs_intel(void)
 		r = &rdt_resources_all[i].resctrl;
 
 		if (r->rid == RDT_RESOURCE_L3 ||
-		    r->rid == RDT_RESOURCE_L3DATA ||
-		    r->rid == RDT_RESOURCE_L3CODE ||
-		    r->rid == RDT_RESOURCE_L2 ||
-		    r->rid == RDT_RESOURCE_L2DATA ||
-		    r->rid == RDT_RESOURCE_L2CODE) {
+		    r->rid == RDT_RESOURCE_L2) {
 			r->cache.arch_has_sparse_bitmaps = false;
 			r->cache.arch_has_empty_bitmaps = false;
 		} else if (r->rid == RDT_RESOURCE_MBA) {
@@ -1039,11 +876,7 @@ static __init void rdt_init_res_defs_amd(void)
 		r = &rdt_resources_all[i].resctrl;
 
 		if (r->rid == RDT_RESOURCE_L3 ||
-		    r->rid == RDT_RESOURCE_L3DATA ||
-		    r->rid == RDT_RESOURCE_L3CODE ||
-		    r->rid == RDT_RESOURCE_L2 ||
-		    r->rid == RDT_RESOURCE_L2DATA ||
-		    r->rid == RDT_RESOURCE_L2CODE) {
+		    r->rid == RDT_RESOURCE_L2) {
 			r->cache.arch_has_sparse_bitmaps = true;
 			r->cache.arch_has_empty_bitmaps = true;
 		} else if (r->rid == RDT_RESOURCE_MBA) {
