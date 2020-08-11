@@ -131,6 +131,23 @@ static inline void __activate_vm(struct kvm_s2_mmu *mmu)
 	__load_guest_stage2(mmu);
 }
 
+static inline void __invalidate_s1_tlb(u64 far)
+{
+	u64 ttbr, asid;
+
+	if (read_sysreg_el1(SYS_TCR) & TCR_A1)
+		ttbr = read_sysreg_el1(SYS_TTBR1);
+	else
+		ttbr = read_sysreg_el1(SYS_TTBR0);
+
+	asid = FIELD_GET(TTBR_ASID_MASK, ttbr);
+	far  = FIELD_GET(GENMASK(55, 12), far);
+	far |= FIELD_PREP(TTBR_ASID_MASK, asid);
+
+	__tlbi(vae1, far);
+	dsb(nsh);
+}
+
 static inline bool __translate_far_to_hpfar(u64 far, u64 *hpfar)
 {
 	u64 par, tmp;
@@ -152,8 +169,17 @@ static inline bool __translate_far_to_hpfar(u64 far, u64 *hpfar)
 		tmp = SYS_PAR_EL1_F; /* back to the guest */
 	write_sysreg(par, par_el1);
 
-	if (unlikely(tmp & SYS_PAR_EL1_F))
+	if (unlikely(tmp & SYS_PAR_EL1_F)) {
+		/*
+		 * It is implementation-defined whether AT instructions
+		 * retrieve a cached value, or walk the page tables to obtain
+		 * their result. Ensure the guest sees this fault by
+		 * invalidating any cached entry from stage1.
+		 */
+		__invalidate_s1_tlb(far);
+
 		return false; /* Translation failed, back to guest */
+	}
 
 	/* Convert PAR to HPFAR format */
 	*hpfar = PAR_TO_HPFAR(tmp);
