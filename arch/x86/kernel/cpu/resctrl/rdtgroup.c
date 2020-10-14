@@ -3018,7 +3018,7 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 	rdtgrp->closid = prgrp->closid;
 
 	if (rdt_mon_capable) {
-		ret = alloc_rmid();
+		ret = alloc_rmid(rdtgrp->closid);
 		if (ret < 0) {
 			rdt_last_cmd_puts("Out of RMIDs\n");
 			goto out_destroy;
@@ -3075,7 +3075,7 @@ static int rdtgroup_mkdir_ctrl_mon(struct kernfs_node *parent_kn,
 	rdtgrp->closid = ret;
 
 	if (rdt_mon_capable) {
-		ret = alloc_rmid();
+		ret = alloc_rmid(rdtgrp->closid);
 		if (ret < 0) {
 			rdt_last_cmd_puts("Out of RMIDs\n");
 			goto out_closid_free;
