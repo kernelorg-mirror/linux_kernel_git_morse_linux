@@ -21,6 +21,9 @@ enum resctrl_conf_type {
 	CDP_DATA,
 };
 
+#define CDP_NUM_TYPES	(CDP_DATA + 1)
+
+
 /**
  * struct resctrl_staged_config - parsed configuration to be applied
  * @new_ctrl:		new ctrl value to be loaded
@@ -58,7 +61,7 @@ struct rdt_domain {
 	int				mbm_work_cpu;
 	int				cqm_work_cpu;
 	struct pseudo_lock_region	*plr;
-	struct resctrl_staged_config	staged_config;
+	struct resctrl_staged_config	staged_config[CDP_NUM_TYPES];
 };
 
 /**
