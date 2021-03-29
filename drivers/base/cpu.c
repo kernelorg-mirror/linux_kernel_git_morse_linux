@@ -504,7 +504,7 @@ static void __init cpu_dev_register_generic(void)
 {
 	int i;
 
-	if (!IS_ENABLED(CONFIG_GENERIC_CPU_DEVICES))
+	if (!IS_ENABLED(CONFIG_GENERIC_CPU_DEVICES) || !acpi_disabled)
 		return;
 
 	for_each_present_cpu(i) {
