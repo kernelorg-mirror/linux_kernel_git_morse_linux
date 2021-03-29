@@ -126,7 +126,6 @@ enum cpu_type_enum {
 
 #if !defined(__ASSEMBLY__)
 #ifdef CONFIG_HOTPLUG_CPU
-extern int arch_register_cpu(int num);
 extern void arch_unregister_cpu(int);
 #endif
 #endif /* ! __ASSEMBLY__ */
