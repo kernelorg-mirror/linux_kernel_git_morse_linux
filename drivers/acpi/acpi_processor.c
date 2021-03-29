@@ -314,6 +314,19 @@ static int acpi_processor_get_info(struct acpi_device *device)
 	}
 
 	/*
+	 * Register CPUs that are present.
+	 * Use get_cpu_device() to skip duplicate CPU descriptions from
+	 * firmware.
+	 */
+	if (!invalid_logical_cpuid(pr->id) && cpu_present(pr->id) &&
+	    !get_cpu_device(pr->id)) {
+		int ret = arch_register_cpu(pr->id);
+
+		if (ret)
+			return ret;
+	}
+
+	/*
 	 *  Extra Processor objects may be enumerated on MP systems with
 	 *  less than the max # of CPUs. They should be ignored _iff
 	 *  they are physically not present.
