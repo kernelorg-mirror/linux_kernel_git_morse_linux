@@ -130,7 +130,6 @@ enum cpu_type_enum {
 
 #if !defined(__ASSEMBLY__)
 #ifdef CONFIG_HOTPLUG_CPU
-int arch_register_cpu(int num);
 void arch_unregister_cpu(int cpu);
 #endif
 #endif /* ! __ASSEMBLY__ */
