@@ -1059,7 +1059,9 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		return 0;
 	}
 
-	if (is_of_node(fwspec->fwnode)) {
+
+	if (is_of_node(fwspec->fwnode) ||
+	    is_fwnode_irqchip(fwspec->fwnode)) {
 		if (fwspec->param_count < 3)
 			return -EINVAL;
 
@@ -1070,6 +1072,9 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		case 1:			/* PPI */
 			*hwirq = fwspec->param[1] + 16;
 			break;
+		case GIC_IRQ_TYPE_GSI:	/* GSI */
+			*hwirq = fwspec->param[1];
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -1077,17 +1082,6 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		*type = fwspec->param[2] & IRQ_TYPE_SENSE_MASK;
 
 		/* Make it clear that broken DTs are... broken */
-		WARN_ON(*type == IRQ_TYPE_NONE);
-		return 0;
-	}
-
-	if (is_fwnode_irqchip(fwspec->fwnode)) {
-		if(fwspec->param_count != 2)
-			return -EINVAL;
-
-		*hwirq = fwspec->param[0];
-		*type = fwspec->param[1];
-
 		WARN_ON(*type == IRQ_TYPE_NONE);
 		return 0;
 	}
