@@ -2,6 +2,8 @@
 #ifndef __ASM_ARM_IRQ_H
 #define __ASM_ARM_IRQ_H
 
+#include <linux/irqchip/arm-gic-common.h>
+
 #define NR_IRQS_LEGACY	16
 
 #ifndef CONFIG_SPARSE_IRQ
