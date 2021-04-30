@@ -1900,10 +1900,6 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 		part = &parts[part_idx];
 
 		part->partition_id = of_node_to_fwnode(child_part);
-
-		pr_info("GIC: PPI partition %pOFn[%d] { ",
-			child_part, part_idx);
-
 		n = of_property_count_elems_of_size(child_part, "affinity",
 						    sizeof(u32));
 		WARN_ON(n <= 0);
@@ -1926,12 +1922,11 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 			if (WARN_ON(cpu < 0))
 				continue;
 
-			pr_cont("%pOF[%d] ", cpu_node, cpu);
-
 			cpumask_set_cpu(cpu, &part->mask);
 		}
 
-		pr_cont("}\n");
+		pr_info("GIC: PPI partition:%pOFn [%d] { CPUs:<%*pbl> }",
+			child_part, part_idx, cpumask_pr_args(&part->mask));
 		part_idx++;
 	}
 
