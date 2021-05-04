@@ -23,6 +23,7 @@ struct mpam_msc
 	cpumask_t		accessibility;
 
 	spinlock_t		lock;
+	bool			probed;
 	unsigned long		ris_idxs[128 / BITS_PER_LONG];
 	u32			ris_max;
 
@@ -89,6 +90,8 @@ struct mpam_msc_ris
 /* List of all classes */
 extern struct list_head mpam_classes;
 
+/* Scheduled work callback to enable mpam once all MSC have been probed */
+void mpam_enable(struct work_struct *work);
 
 /*
  * MPAM MSCs have the following register layout. See:
