@@ -112,6 +112,7 @@ bool arm64_use_ng_mappings = false;
 EXPORT_SYMBOL(arm64_use_ng_mappings);
 
 unsigned long __ro_after_init arm64_pbha_perf_only_values;
+EXPORT_SYMBOL(arm64_pbha_perf_only_values);
 
 /*
  * Permit PER_LINUX32 and execve() of 32-bit binaries even if not all CPUs
