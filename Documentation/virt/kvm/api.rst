@@ -8289,6 +8289,20 @@ This capability indicates that KVM can pass unhandled hypercalls to userspace,
 if the VMM enables it. Hypercalls are passed with KVM_EXIT_HYPERCALL in
 kvm_run::hypercall.
 
+8.38 KVM_CAP_ARM_PSCI_TO_USER
+-----------------------------
+
+:Architectures: arm64
+
+When the VMM enables this capability, all PSCI calls are passed to userspace
+instead of being handled by KVM. Capability KVM_CAP_ARM_HVC_TO_USER must be
+enabled first.
+
+Userspace should support at least PSCI v1.0. Otherwise SMCCC features won't be
+available to the guest. Userspace does not need to handle the SMCCC_VERSION
+parameter for the PSCI_FEATURES function. The KVM_ARM_VCPU_PSCI_0_2 vCPU
+feature should be set even if this capability is enabled.
+
 9. Known KVM API problems
 =========================
 

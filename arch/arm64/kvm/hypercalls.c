@@ -121,7 +121,7 @@ static bool kvm_hvc_call_allowed(struct kvm_vcpu *vcpu, u32 func_id)
 	}
 }
 
-static int kvm_hvc_user(struct kvm_vcpu *vcpu)
+int kvm_hvc_user(struct kvm_vcpu *vcpu)
 {
 	int i;
 	struct kvm_run *run = vcpu->run;

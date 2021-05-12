@@ -76,7 +76,7 @@ int kvm_arch_check_processor_compat(void *opaque)
 int kvm_vm_ioctl_enable_cap(struct kvm *kvm,
 			    struct kvm_enable_cap *cap)
 {
-	int r;
+	int r = -EINVAL;
 
 	if (cap->flags)
 		return -EINVAL;
@@ -105,8 +105,11 @@ int kvm_vm_ioctl_enable_cap(struct kvm *kvm,
 		r = 0;
 		set_bit(KVM_ARCH_FLAG_HVC_TO_USER, &kvm->arch.flags);
 		break;
-	default:
-		r = -EINVAL;
+	case KVM_CAP_ARM_PSCI_TO_USER:
+		if (test_bit(KVM_ARCH_FLAG_HVC_TO_USER, &kvm->arch.flags)) {
+			r = 0;
+			set_bit(KVM_ARCH_FLAG_PSCI_TO_USER, &kvm->arch.flags);
+		}
 		break;
 	}
 
@@ -235,6 +238,7 @@ int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
 	case KVM_CAP_PTP_KVM:
 	case KVM_CAP_ARM_SYSTEM_SUSPEND:
 	case KVM_CAP_ARM_HVC_TO_USER:
+	case KVM_CAP_ARM_PSCI_TO_USER:
 		r = 1;
 		break;
 	case KVM_CAP_SET_GUEST_DEBUG2:
