@@ -121,6 +121,28 @@ static bool kvm_hvc_call_allowed(struct kvm_vcpu *vcpu, u32 func_id)
 	}
 }
 
+static int kvm_hvc_user(struct kvm_vcpu *vcpu)
+{
+	int i;
+	struct kvm_run *run = vcpu->run;
+
+	if (!test_bit(KVM_ARCH_FLAG_HVC_TO_USER, &vcpu->kvm->arch.flags)) {
+		smccc_set_retval(vcpu, SMCCC_RET_NOT_SUPPORTED, 0, 0, 0);
+		return 1;
+	}
+
+	run->exit_reason = KVM_EXIT_HYPERCALL;
+	run->hypercall.nr = kvm_vcpu_hvc_get_imm(vcpu);
+	/* Add the first parameters for fast access. */
+	for (i = 0; i < 6; i++)
+		run->hypercall.args[i] = vcpu_get_reg(vcpu, i);
+	run->hypercall.ret = 0;
+	run->hypercall.longmode = 0;
+	run->hypercall.pad = 0;
+
+	return 0;
+}
+
 int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 {
 	struct kvm_smccc_features *smccc_feat = &vcpu->kvm->arch.smccc_feat;
@@ -219,8 +241,12 @@ int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 	case ARM_SMCCC_TRNG_RND32:
 	case ARM_SMCCC_TRNG_RND64:
 		return kvm_trng_call(vcpu);
-	default:
+	case KVM_PSCI_FN_BASE...KVM_PSCI_FN_LAST:
+	case PSCI_0_2_FN_BASE...PSCI_0_2_FN_LAST:
+	case PSCI_0_2_FN64_BASE...PSCI_0_2_FN64_LAST:
 		return kvm_psci_call(vcpu);
+	default:
+		return kvm_hvc_user(vcpu);
 	}
 
 out:

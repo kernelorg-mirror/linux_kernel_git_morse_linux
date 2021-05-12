@@ -17,6 +17,10 @@
 
 #define KVM_ARM_PSCI_LATEST	KVM_ARM_PSCI_1_1
 
+#define KVM_PSCI_FN_LAST	KVM_PSCI_FN(3)
+#define PSCI_0_2_FN_LAST	PSCI_0_2_FN(0x3f)
+#define PSCI_0_2_FN64_LAST	PSCI_0_2_FN64(0x3f)
+
 static inline int kvm_psci_version(struct kvm_vcpu *vcpu)
 {
 	/*

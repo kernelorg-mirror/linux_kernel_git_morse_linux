@@ -6122,8 +6122,12 @@ to the byte array.
 			__u32 pad;
 		} hypercall;
 
-Unused.  This was once used for 'hypercall to userspace'.  To implement
-such functionality, use KVM_EXIT_IO (x86) or KVM_EXIT_MMIO (all except s390).
+On x86 this was once used for 'hypercall to userspace'.  To implement such
+functionality, use KVM_EXIT_IO (x86) or KVM_EXIT_MMIO (all except s390).
+
+On arm64 it is used for hypercalls, when the KVM_CAP_ARM_HVC_TO_USER capability
+is enabled. 'nr' contains the HVC or SMC immediate. 'args' contains registers
+x0 - x5. The other parameters are unused.
 
 .. note:: KVM_EXIT_IO is significantly faster than KVM_EXIT_MMIO.
 
@@ -8275,6 +8279,15 @@ structure.
 
 When getting the Modified Change Topology Report value, the attr->addr
 must point to a byte where the value will be stored or retrieved from.
+
+8.37 KVM_CAP_ARM_HVC_TO_USER
+----------------------------
+
+:Architecture: arm64
+
+This capability indicates that KVM can pass unhandled hypercalls to userspace,
+if the VMM enables it. Hypercalls are passed with KVM_EXIT_HYPERCALL in
+kvm_run::hypercall.
 
 9. Known KVM API problems
 =========================

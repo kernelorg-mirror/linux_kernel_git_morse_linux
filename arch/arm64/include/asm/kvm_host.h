@@ -213,6 +213,7 @@ struct kvm_arch {
 #define KVM_ARCH_FLAG_EL1_32BIT				4
 	/* PSCI SYSTEM_SUSPEND enabled for the guest */
 #define KVM_ARCH_FLAG_SYSTEM_SUSPEND_ENABLED		5
+#define KVM_ARCH_FLAG_HVC_TO_USER			6
 
 	unsigned long flags;
 
