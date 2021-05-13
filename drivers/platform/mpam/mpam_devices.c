@@ -33,6 +33,8 @@
 
 #include "mpam_internal.h"
 
+DEFINE_STATIC_KEY_FALSE(mpam_enabled);
+
 /*
  * mpam_list_lock protects the RCU lists when writing. Once the
  * mpam_enabled key is enabled these lists are read-only,
@@ -767,6 +769,9 @@ static int mpam_discovery_cpu_online(unsigned int cpu)
 	struct mpam_msc *msc;
 	bool new_device_probed = false;
 
+	if (mpam_is_enabled())
+		return 0;
+
 	mutex_lock(&mpam_list_lock);
 	list_for_each_entry(msc, &mpam_all_msc, glbl_list) {
 		if (!cpumask_test_cpu(cpu, &msc->accessibility))
@@ -1341,6 +1346,7 @@ static void mpam_enable_once(void)
 	partid_max_published = true;
 	spin_unlock(&partid_max_lock);
 
+	static_branch_enable(&mpam_enabled);
 	mpam_register_cpuhp_callbacks(mpam_cpu_online);
 
 	pr_info("MPAM enabled with %u partid and %u pmg\n",
@@ -1379,6 +1385,8 @@ void mpam_disable(struct work_struct *work)
 		mpam_cpuhp_state = 0;
 	}
 	mutex_unlock(&mpam_cpuhp_state_lock);
+
+	static_branch_disable(&mpam_enabled);
 
 	mpam_unregister_irqs();
 
