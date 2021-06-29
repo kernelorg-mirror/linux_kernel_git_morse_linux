@@ -183,7 +183,7 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
 	struct arch_mbm_state *m;
-	u64 msr_val;
+	u64 msr_val, chunks;
 
 	if (!cpumask_test_cpu(smp_processor_id(), &d->cpu_mask))
 		return -EINVAL;
@@ -208,10 +208,11 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 	if (m) {
 		m->chunks += mbm_overflow_count(m->prev_msr, msr_val,
 						hw_res->mbm_width);
-		*val = get_corrected_mbm_count(rmid, m->chunks);
+		chunks = get_corrected_mbm_count(rmid, m->chunks);
+		*val = chunks * hw_res->mon_scale;
 		m->prev_msr = msr_val;
 	} else {
-		*val = msr_val;
+		*val = msr_val * hw_res->mon_scale;
 	}
 
 	return 0;
@@ -226,7 +227,6 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 void __check_limbo(struct rdt_domain *d, bool force_free)
 {
 	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
-	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	struct rmid_entry *entry;
 	u32 crmid = 1, nrmid;
 	bool rmid_dirty;
@@ -249,7 +249,6 @@ void __check_limbo(struct rdt_domain *d, bool force_free)
 					   QOS_L3_OCCUP_EVENT_ID, &val)) {
 			rmid_dirty = true;
 		} else {
-			val *= hw_res->mon_scale;
 			rmid_dirty = (val >= resctrl_rmid_realloc_threshold);
 		}
 
@@ -293,7 +292,6 @@ int alloc_rmid(void)
 static void add_rmid_to_limbo(struct rmid_entry *entry)
 {
 	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
-	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	struct rdt_domain *d;
 	int cpu, err;
 	u64 val = 0;
@@ -305,7 +303,6 @@ static void add_rmid_to_limbo(struct rmid_entry *entry)
 			err = resctrl_arch_rmid_read(r, d, entry->rmid,
 						     QOS_L3_OCCUP_EVENT_ID,
 						     &val);
-			val *= hw_res->mon_scale;
 			if (err || val <= resctrl_rmid_realloc_threshold)
 				continue;
 		}
@@ -370,7 +367,7 @@ static int __mon_event_count(u32 rmid, struct rmid_read *rr)
 
 	if (rr->first) {
 		memset(m, 0, sizeof(struct mbm_state));
-		m->prev_bw_chunks = tval;
+		m->prev_bw_bytes = tval;
 		return 0;
 	}
 
@@ -385,21 +382,20 @@ static int __mon_event_count(u32 rmid, struct rmid_read *rr)
  */
 static void mbm_bw_count(u32 rmid, struct rmid_read *rr)
 {
-	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(rr->r);
 	struct mbm_state *m = &rr->d->mbm_local[rmid];
-	u64 cur_bw, bw_chunks = 0;
+	u64 cur_bw, bw_bytes = 0;
 
-	if (resctrl_arch_rmid_read(rr->r, rr->d, rmid, rr->evtid, &bw_chunks))
+	if (resctrl_arch_rmid_read(rr->r, rr->d, rmid, rr->evtid, &bw_bytes))
 		return;
 
-	cur_bw = (bw_chunks - m->prev_bw_chunks) * hw_res->mon_scale;
+	cur_bw = (bw_bytes - m->prev_bw_bytes);
 	cur_bw >>= 20;
 
 	if (m->delta_comp)
 		m->delta_bw = abs(cur_bw - m->prev_bw);
 	m->delta_comp = false;
 	m->prev_bw = cur_bw;
-	m->prev_bw_chunks = bw_chunks;
+	m->prev_bw_bytes = bw_bytes;
 }
 
 /*
