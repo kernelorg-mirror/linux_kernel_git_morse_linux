@@ -432,6 +432,28 @@ static int domain_setup_ctrlval(struct rdt_resource *r, struct rdt_domain *d)
 	return 0;
 }
 
+static int arch_domain_mbm_alloc(u32 num_rmid, struct rdt_hw_domain *hw_dom)
+{
+	size_t tsize;
+
+	if (is_mbm_total_enabled()) {
+		tsize = sizeof(*hw_dom->arch_mbm_total);
+		hw_dom->arch_mbm_total = kcalloc(num_rmid, tsize, GFP_KERNEL);
+		if (!hw_dom->arch_mbm_total)
+			return -ENOMEM;
+	}
+	if (is_mbm_local_enabled()) {
+		tsize = sizeof(*hw_dom->arch_mbm_local);
+		hw_dom->arch_mbm_local = kcalloc(num_rmid, tsize, GFP_KERNEL);
+		if (!hw_dom->arch_mbm_local) {
+			kfree(hw_dom->arch_mbm_total);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
 /*
  * domain_add_cpu - Add a cpu to a resource's domain list.
  *
@@ -481,6 +503,11 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 		return;
 	}
 
+	if (r->mon_capable && arch_domain_mbm_alloc(r->num_rmid, hw_dom)) {
+		kfree(d);
+		return;
+	}
+
 	list_add_tail(&d->list, add_pos);
 
 	err = resctrl_online_domain(r, d);
@@ -516,6 +543,8 @@ static void domain_remove_cpu(int cpu, struct rdt_resource *r)
 			d->plr->d = NULL;
 
 		kfree(hw_dom->ctrl_val);
+		kfree(hw_dom->arch_mbm_total);
+		kfree(hw_dom->arch_mbm_local);
 		kfree(hw_dom);
 		return;
 	}
