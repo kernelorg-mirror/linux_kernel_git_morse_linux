@@ -201,7 +201,9 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 
 	m = get_arch_mbm_state(hw_dom, rmid, eventid);
 	if (m) {
-		*val = mbm_overflow_count(m->prev_msr, msr_val, hw_res->mbm_width);
+		m->chunks += mbm_overflow_count(m->prev_msr, msr_val,
+						hw_res->mbm_width);
+		*val = get_corrected_mbm_count(rmid, m->chunks);
 		m->prev_msr = msr_val;
 	} else {
 		*val = msr_val;
@@ -366,9 +368,7 @@ static int __mon_event_count(u32 rmid, struct rmid_read *rr)
 		return 0;
 	}
 
-	m->chunks += tval;
-
-	rr->val += get_corrected_mbm_count(rmid, m->chunks);
+	rr->val += tval;
 
 	return 0;
 }
@@ -381,13 +381,10 @@ static void mbm_bw_count(u32 rmid, struct rmid_read *rr)
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(rr->r);
 	struct mbm_state *m = &rr->d->mbm_local[rmid];
-	u64 tval = 0, cur_bw, bw_chunks;
+	u64 cur_bw, bw_chunks = 0;
 
-	if (resctrl_arch_rmid_read(rr->r, rr->d, rmid, rr->evtid, &tval))
+	if (resctrl_arch_rmid_read(rr->r, rr->d, rmid, rr->evtid, &bw_chunks))
 		return;
-
-	m->chunks += tval;
-	bw_chunks = get_corrected_mbm_count(rmid, m->chunks);
 
 	cur_bw = (bw_chunks - m->prev_bw_chunks) * hw_res->mon_scale;
 	cur_bw >>= 20;
