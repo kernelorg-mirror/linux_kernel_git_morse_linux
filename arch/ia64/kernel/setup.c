@@ -569,7 +569,7 @@ setup_arch (char **cmdline_p)
 #ifdef CONFIG_ACPI_NUMA
 	acpi_numa_init();
 	acpi_numa_fixup();
-#ifdef CONFIG_ACPI_HOTPLUG_CPU
+#ifdef CONFIG_ACPI_HOTPLUG_PRESENT_CPU
 	prefill_possible_map();
 #endif
 	per_cpu_scan_finalize((cpumask_empty(&early_cpu_possible_map) ?
