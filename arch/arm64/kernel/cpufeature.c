@@ -574,7 +574,7 @@ static const struct arm64_ftr_bits ftr_raz[] = {
 };
 
 #define ARM64_FTR_REG_OVERRIDE(id, table, ovr) {		\
-		.sys_id = id,					\
+		.sys_id = SYS_ ## id,					\
 		.reg = 	&(struct arm64_ftr_reg){		\
 			.name = #id,				\
 			.override = (ovr),			\
@@ -593,65 +593,65 @@ static const struct __ftr_reg_entry {
 } arm64_ftr_regs[] = {
 
 	/* Op1 = 0, CRn = 0, CRm = 1 */
-	ARM64_FTR_REG(SYS_ID_PFR0_EL1, ftr_id_pfr0),
-	ARM64_FTR_REG(SYS_ID_PFR1_EL1, ftr_id_pfr1),
-	ARM64_FTR_REG(SYS_ID_DFR0_EL1, ftr_id_dfr0),
-	ARM64_FTR_REG(SYS_ID_MMFR0_EL1, ftr_id_mmfr0),
-	ARM64_FTR_REG(SYS_ID_MMFR1_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_ID_MMFR2_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_ID_MMFR3_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_PFR0_EL1, ftr_id_pfr0),
+	ARM64_FTR_REG(ID_PFR1_EL1, ftr_id_pfr1),
+	ARM64_FTR_REG(ID_DFR0_EL1, ftr_id_dfr0),
+	ARM64_FTR_REG(ID_MMFR0_EL1, ftr_id_mmfr0),
+	ARM64_FTR_REG(ID_MMFR1_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_MMFR2_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_MMFR3_EL1, ftr_generic_32bits),
 
 	/* Op1 = 0, CRn = 0, CRm = 2 */
-	ARM64_FTR_REG(SYS_ID_ISAR0_EL1, ftr_id_isar0),
-	ARM64_FTR_REG(SYS_ID_ISAR1_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_ID_ISAR2_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_ID_ISAR3_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_ID_ISAR4_EL1, ftr_id_isar4),
-	ARM64_FTR_REG(SYS_ID_ISAR5_EL1, ftr_id_isar5),
-	ARM64_FTR_REG(SYS_ID_MMFR4_EL1, ftr_id_mmfr4),
-	ARM64_FTR_REG(SYS_ID_ISAR6_EL1, ftr_id_isar6),
+	ARM64_FTR_REG(ID_ISAR0_EL1, ftr_id_isar0),
+	ARM64_FTR_REG(ID_ISAR1_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_ISAR2_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_ISAR3_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(ID_ISAR4_EL1, ftr_id_isar4),
+	ARM64_FTR_REG(ID_ISAR5_EL1, ftr_id_isar5),
+	ARM64_FTR_REG(ID_MMFR4_EL1, ftr_id_mmfr4),
+	ARM64_FTR_REG(ID_ISAR6_EL1, ftr_id_isar6),
 
 	/* Op1 = 0, CRn = 0, CRm = 3 */
-	ARM64_FTR_REG(SYS_MVFR0_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_MVFR1_EL1, ftr_generic_32bits),
-	ARM64_FTR_REG(SYS_MVFR2_EL1, ftr_mvfr2),
-	ARM64_FTR_REG(SYS_ID_PFR2_EL1, ftr_id_pfr2),
-	ARM64_FTR_REG(SYS_ID_DFR1_EL1, ftr_id_dfr1),
-	ARM64_FTR_REG(SYS_ID_MMFR5_EL1, ftr_id_mmfr5),
+	ARM64_FTR_REG(MVFR0_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(MVFR1_EL1, ftr_generic_32bits),
+	ARM64_FTR_REG(MVFR2_EL1, ftr_mvfr2),
+	ARM64_FTR_REG(ID_PFR2_EL1, ftr_id_pfr2),
+	ARM64_FTR_REG(ID_DFR1_EL1, ftr_id_dfr1),
+	ARM64_FTR_REG(ID_MMFR5_EL1, ftr_id_mmfr5),
 
 	/* Op1 = 0, CRn = 0, CRm = 4 */
-	ARM64_FTR_REG(SYS_ID_AA64PFR0_EL1, ftr_id_aa64pfr0),
-	ARM64_FTR_REG_OVERRIDE(SYS_ID_AA64PFR1_EL1, ftr_id_aa64pfr1,
+	ARM64_FTR_REG(ID_AA64PFR0_EL1, ftr_id_aa64pfr0),
+	ARM64_FTR_REG_OVERRIDE(ID_AA64PFR1_EL1, ftr_id_aa64pfr1,
 			       &id_aa64pfr1_override),
-	ARM64_FTR_REG(SYS_ID_AA64ZFR0_EL1, ftr_id_aa64zfr0),
+	ARM64_FTR_REG(ID_AA64ZFR0_EL1, ftr_id_aa64zfr0),
 
 	/* Op1 = 0, CRn = 0, CRm = 5 */
-	ARM64_FTR_REG(SYS_ID_AA64DFR0_EL1, ftr_id_aa64dfr0),
-	ARM64_FTR_REG(SYS_ID_AA64DFR1_EL1, ftr_raz),
+	ARM64_FTR_REG(ID_AA64DFR0_EL1, ftr_id_aa64dfr0),
+	ARM64_FTR_REG(ID_AA64DFR1_EL1, ftr_raz),
 
 	/* Op1 = 0, CRn = 0, CRm = 6 */
-	ARM64_FTR_REG(SYS_ID_AA64ISAR0_EL1, ftr_id_aa64isar0),
-	ARM64_FTR_REG_OVERRIDE(SYS_ID_AA64ISAR1_EL1, ftr_id_aa64isar1,
+	ARM64_FTR_REG(ID_AA64ISAR0_EL1, ftr_id_aa64isar0),
+	ARM64_FTR_REG_OVERRIDE(ID_AA64ISAR1_EL1, ftr_id_aa64isar1,
 			       &id_aa64isar1_override),
 
 	/* Op1 = 0, CRn = 0, CRm = 7 */
-	ARM64_FTR_REG(SYS_ID_AA64MMFR0_EL1, ftr_id_aa64mmfr0),
-	ARM64_FTR_REG_OVERRIDE(SYS_ID_AA64MMFR1_EL1, ftr_id_aa64mmfr1,
+	ARM64_FTR_REG(ID_AA64MMFR0_EL1, ftr_id_aa64mmfr0),
+	ARM64_FTR_REG_OVERRIDE(ID_AA64MMFR1_EL1, ftr_id_aa64mmfr1,
 			       &id_aa64mmfr1_override),
-	ARM64_FTR_REG(SYS_ID_AA64MMFR2_EL1, ftr_id_aa64mmfr2),
+	ARM64_FTR_REG(ID_AA64MMFR2_EL1, ftr_id_aa64mmfr2),
 
 	/* Op1 = 0, CRn = 1, CRm = 2 */
-	ARM64_FTR_REG(SYS_ZCR_EL1, ftr_zcr),
+	ARM64_FTR_REG(ZCR_EL1, ftr_zcr),
 
 	/* Op1 = 1, CRn = 0, CRm = 0 */
-	ARM64_FTR_REG(SYS_GMID_EL1, ftr_gmid),
+	ARM64_FTR_REG(GMID_EL1, ftr_gmid),
 
 	/* Op1 = 3, CRn = 0, CRm = 0 */
 	{ SYS_CTR_EL0, &arm64_ftr_reg_ctrel0 },
-	ARM64_FTR_REG(SYS_DCZID_EL0, ftr_dczid),
+	ARM64_FTR_REG(DCZID_EL0, ftr_dczid),
 
 	/* Op1 = 3, CRn = 14, CRm = 0 */
-	ARM64_FTR_REG(SYS_CNTFRQ_EL0, ftr_single32),
+	ARM64_FTR_REG(CNTFRQ_EL0, ftr_single32),
 };
 
 static int search_cmp_ftr_reg(const void *id, const void *regp)
