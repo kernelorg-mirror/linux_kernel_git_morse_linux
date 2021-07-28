@@ -441,11 +441,10 @@ int resctrl_arch_set_cdp_enabled(enum resctrl_res_level l, bool enable);
 /*
  * To return the common struct rdt_resource, which is contained in struct
  * rdt_hw_resource, walk the resctrl member of struct rdt_hw_resource.
- * This makes the limit the resctrl member past the end of the array.
  */
 #define for_each_rdt_resource(r)					      \
 	for (r = &rdt_resources_all[0].r_resctrl;			      \
-	     r < &rdt_resources_all[RDT_NUM_RESOURCES].r_resctrl;	      \
+	     r <= &rdt_resources_all[RDT_NUM_RESOURCES - 1].r_resctrl;	      \
 	     r = resctrl_inc(r))
 
 #define for_each_capable_rdt_resource(r)				      \
