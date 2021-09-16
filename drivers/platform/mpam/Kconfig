@@ -5,3 +5,4 @@ config ARM_CPU_RESCTRL
 	default y
 	depends on ARM64 && ARCH_HAS_CPU_RESCTRL
 	select RESCTRL_RMID_DEPENDS_ON_CLOSID
+	select RESCTRL_IOMMU if ARM_SMMU_V3
