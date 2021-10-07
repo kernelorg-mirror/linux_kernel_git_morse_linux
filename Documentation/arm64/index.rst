@@ -18,6 +18,7 @@ ARM64 Architecture
     legacy_instructions
     memory
     memory-tagging-extension
+    pbha
     perf
     pointer-authentication
     silicon-errata
