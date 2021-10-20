@@ -188,7 +188,7 @@ static bool cache_node_is_unified(struct cacheinfo *this_leaf,
 #define arch_compact_of_hwid(_x)	(_x)
 #endif
 
-static void cache_of_set_id(struct cacheinfo *this_leaf, struct device_node *np)
+unsigned long cache_of_get_id(struct device_node *np)
 {
 	struct device_node *cpu;
 	u32 min_id = ~0;
@@ -200,7 +200,7 @@ static void cache_of_set_id(struct cacheinfo *this_leaf, struct device_node *np)
 		id = arch_compact_of_hwid(id);
 		if (FIELD_GET(GENMASK_ULL(63, 32), id)) {
 			of_node_put(cache_node);
-			return;
+			return ~0UL;
 		}
 
 		while ((cache_node = of_find_next_cache_node(cache_node))) {
@@ -213,8 +213,15 @@ static void cache_of_set_id(struct cacheinfo *this_leaf, struct device_node *np)
 		}
 	}
 
-	if (min_id != ~0) {
-		this_leaf->id = min_id;
+	return min_id;
+}
+
+static void cache_of_set_id(struct cacheinfo *this_leaf, struct device_node *np)
+{
+	unsigned long id = cache_of_get_id(np);
+
+	if (id != ~0UL) {
+		this_leaf->id = id;
 		this_leaf->attributes |= CACHE_ID;
 	}
 }
