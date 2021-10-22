@@ -1898,6 +1898,16 @@ static int mba_sc_domain_allocate(struct rdt_resource *r, struct rdt_domain *d)
 	int cpu = cpumask_any(&d->cpu_mask);
 	int i;
 
+	/*
+	 * d->mbps_val is allocated by a call to this function in set_mba_sc(),
+	 * and domain_setup_mon_state(). Both calls are guarded by is_mba_sc(),
+	 * which can only return true while the filesystem is mounted. The
+	 * two calls are prevented from racing as rdt_get_tree() takes the
+	 * cpuhp read lock before calling rdt_enable_ctx(ctx), which prevents
+	 * it running concurrently with resctrl_online_domain().
+	 */
+	lockdep_assert_cpus_held();
+
 	d->mbps_val = kcalloc_node(num_closid, sizeof(*d->mbps_val),
 				   GFP_KERNEL, cpu_to_node(cpu));
 	if (!d->mbps_val)
@@ -1909,6 +1919,20 @@ static int mba_sc_domain_allocate(struct rdt_resource *r, struct rdt_domain *d)
 	return 0;
 }
 
+static int mba_sc_allocate(struct rdt_resource *r)
+{
+	struct rdt_domain *d;
+	int ret = -EINVAL;
+
+	list_for_each_entry(d, &r->domains, list) {
+		ret = mba_sc_domain_allocate(r, d);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}
+
 static void mba_sc_domain_destroy(struct rdt_resource *r,
 				  struct rdt_domain *d)
 {
@@ -1916,21 +1940,14 @@ static void mba_sc_domain_destroy(struct rdt_resource *r,
 	d->mbps_val = NULL;
 }
 
-static void mba_sc_reset(void)
+static void mba_sc_destroy(struct rdt_resource *r)
 {
-	/*
-	 * mbm_handle_overflow() only passes domains of the L3 resource to
-	 * update_mba_bw(), so mba_sc only supports monitoring on the L3.
-	 */
-	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
-	u32 num_closid = resctrl_arch_get_num_closid(r);
 	struct rdt_domain *d;
-	int i;
 
-	list_for_each_entry(d, &r->domains, list) {
-		for (i = 0; i < num_closid; i++)
-			d->mbps_val[i] = MBA_MAX_MBPS;
-	}
+	lockdep_assert_cpus_held();
+
+	list_for_each_entry(d, &r->domains, list)
+		mba_sc_domain_destroy(r, d);
 }
 
 /*
@@ -1957,8 +1974,11 @@ static int set_mba_sc(bool mba_sc)
 		return -EINVAL;
 
 	r->membw.mba_sc = mba_sc;
-	mba_sc_reset();
 
+	if (is_mba_sc(r))
+		return mba_sc_allocate(r);
+
+	mba_sc_destroy(r);
 	return 0;
 }
 
@@ -3362,10 +3382,12 @@ int resctrl_online_domain(struct rdt_resource *r, struct rdt_domain *d)
 	if (err)
 		return err;
 
-	err = mba_sc_domain_allocate(r, d);
-	if (err) {
-		domain_destroy_mon_state(d);
-		return err;
+	if (is_mba_sc(r)) {
+		err = mba_sc_domain_allocate(r, d);
+		if (err) {
+			domain_destroy_mon_state(d);
+			return err;
+		}
 	}
 
 	if (is_mbm_enabled()) {
