@@ -48,6 +48,12 @@ static bool exposed_mon_capable;
  */
 static bool cdp_enabled;
 
+/*
+ * If resctrl_init() succeeded, resctrl_exit() can be used to remove support
+ * for the filesystem in the event of an error.
+ */
+static bool resctrl_enabled;
+
 /* A dummy mon context to use when the monitors were allocated up front */
 u32 __mon_is_rmid_idx = USE_RMID_IDX;
 void *mon_is_rmid_idx = &__mon_is_rmid_idx;
@@ -271,8 +277,12 @@ static void *resctrl_arch_mon_ctx_alloc_no_wait(struct rdt_resource *r,
 						enum resctrl_event_id evtid)
 {
 	struct mpam_resctrl_res *res;
-	u32 *ret = kmalloc(sizeof(*ret), GFP_ATOMIC);
+	u32 *ret;
 
+	if (!mpam_is_enabled())
+		return ERR_PTR(-EINVAL);
+
+	ret = kmalloc(sizeof(*ret), GFP_ATOMIC);
 	if (!ret)
 		return ERR_PTR(-ENOMEM);
 
@@ -317,6 +327,9 @@ void resctrl_arch_mon_ctx_free(struct rdt_resource *r,
 	struct mpam_resctrl_res *res;
 	u32 mon = *(u32 *)arch_mon_ctx;
 
+	if (!mpam_is_enabled())
+		return;
+
 	if (mon == USE_RMID_IDX)
 		return;
 	kfree(arch_mon_ctx);
@@ -359,6 +372,9 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_mon_domain *d,
 	struct mpam_resctrl_dom *dom;
 	u32 mon = *(u32 *)arch_mon_ctx;
 	enum mpam_device_features type;
+
+	if (!mpam_is_enabled())
+		return -EINVAL;
 
 	resctrl_arch_rmid_read_context_check();
 
@@ -413,6 +429,9 @@ void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_mon_domain *d,
 {
 	struct mon_cfg cfg;
 	struct mpam_resctrl_dom *dom;
+
+	if (!mpam_is_enabled())
+		return;
 
 	if (eventid != QOS_L3_MBM_LOCAL_EVENT_ID)
 		return;
@@ -832,6 +851,11 @@ void resctrl_arch_mon_event_config_read(void *info)
 	struct mpam_resctrl_dom *dom;
 	struct resctrl_mon_config_info *mon_info = info;
 
+	if (!mpam_is_enabled()) {
+		mon_info->mon_config = 0;
+		return;
+	}
+
 	dom = container_of(mon_info->d, struct mpam_resctrl_dom, resctrl_mon_dom);
 	mon_info->mon_config = dom->mbm_local_evt_cfg & MAX_EVT_CONFIG_BITS;
 }
@@ -843,6 +867,11 @@ void resctrl_arch_mon_event_config_write(void *info)
 
 	WARN_ON_ONCE(mon_info->mon_config & ~MPAM_RESTRL_EVT_CONFIG_VALID);
 
+	if (!mpam_is_enabled()) {
+		dom->mbm_local_evt_cfg = 0;
+		return;
+	}
+
 	dom = container_of(mon_info->d, struct mpam_resctrl_dom, resctrl_mon_dom);
 	dom->mbm_local_evt_cfg = mon_info->mon_config & MPAM_RESTRL_EVT_CONFIG_VALID;
 }
@@ -852,7 +881,12 @@ void resctrl_arch_reset_rmid_all(struct rdt_resource *r, struct rdt_mon_domain *
 	struct mpam_resctrl_dom *dom;
 
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_mon_dom);
+	if (!mpam_is_enabled()) {
+		dom->mbm_local_evt_cfg = 0;
+		return;
+	}
 	dom->mbm_local_evt_cfg = MPAM_RESTRL_EVT_CONFIG_VALID;
+
 	mpam_msmon_reset_all_mbwu(dom->comp);
 }
 
@@ -1063,6 +1097,9 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 	lockdep_assert_cpus_held();
 	lockdep_assert_irqs_enabled();
 
+	if (!mpam_is_enabled())
+		return -EINVAL;
+
 	/*
 	 * NOTE: don't check the CPU as mpam_apply_config() doesn't care,
 	 * and resctrl_arch_update_domains() depends on this.
@@ -1131,6 +1168,9 @@ int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid)
 
 	lockdep_assert_cpus_held();
 	lockdep_assert_irqs_enabled();
+
+	if (!mpam_is_enabled())
+		return -EINVAL;
 
 	list_for_each_entry(d, &r->ctrl_domains, hdr.list) {
 		for (t = 0; t < CDP_NUM_TYPES; t++) {
@@ -1391,9 +1431,48 @@ int mpam_resctrl_setup(void)
 		}
 
 		err = resctrl_init();
+		if (!err)
+			WRITE_ONCE(resctrl_enabled, true);
 	}
 
 	return err;
+}
+
+void mpam_resctrl_exit(void)
+{
+	if (!READ_ONCE(resctrl_enabled))
+		return;
+
+	WRITE_ONCE(resctrl_enabled, false);
+	resctrl_exit();
+}
+
+/*
+ * The driver is detaching an MSC from this class, if resctrl was using it,
+ * pull on resctrl_exit().
+ */
+void mpam_resctrl_teardown_class(struct mpam_class *class)
+{
+	int i;
+	struct mpam_resctrl_res *res;
+
+	might_sleep();
+
+	for (i = 0; i < RDT_NUM_RESOURCES; i++) {
+		res = &mpam_resctrl_controls[i];
+		if (res->class == class) {
+			mpam_resctrl_exit();
+			res->class = NULL;
+			break;
+		}
+	}
+	for (i = 0; i < QOS_NUM_EVENTS; i++) {
+		if (mpam_resctrl_counters[i] == class) {
+			mpam_resctrl_exit();
+			res->class = NULL;
+			break;
+		}
+	}
 }
 
 #ifdef CONFIG_MPAM_KUNIT_TEST
