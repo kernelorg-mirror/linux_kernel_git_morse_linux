@@ -905,7 +905,8 @@ static void __ris_msmon_read(void *arg)
 
 static int _msmon_read(struct mpam_component *comp, struct mon_read *arg)
 {
-	int err;
+	int err, cpu;
+	struct cpumask *mask;
 	struct mpam_msc *msc;
 	struct mpam_msc_ris *ris;
 
@@ -914,10 +915,25 @@ static int _msmon_read(struct mpam_component *comp, struct mon_read *arg)
 		arg->ris = ris;
 
 		msc = ris->msc;
+		mask = &msc->accessibility;
+
+		/*
+		 * Fail the access if we need to cross call to reach this MSC
+		 * and irqs are masked. The PMU driver calls this with irqs
+		 * masked, but it also specifies where the callback should run.
+		 */
+		err = -EIO;
 		spin_lock(&msc->lock);
-		err = smp_call_function_any(&msc->accessibility,
-					    __ris_msmon_read, arg, true);
+		cpu = get_cpu();
+		if (cpumask_test_cpu(cpu, mask)) {
+			__ris_msmon_read(arg);
+			err = 0;
+		} else if (!irqs_disabled())
+			err = smp_call_function_any(mask, __ris_msmon_read,
+						    arg, true);
+		put_cpu();
 		spin_unlock(&msc->lock);
+
 		if (!err && arg->err)
 			err = arg->err;
 		if (err)
@@ -936,8 +952,6 @@ int mpam_msmon_read(struct mpam_component *comp, struct mon_cfg *ctx,
 	u64 wait_jiffies = 0;
 	struct mpam_props *cprops = &comp->class->props;
 
-	might_sleep();
-
 	if (!mpam_is_enabled())
 		return -EIO;
 
@@ -951,7 +965,7 @@ int mpam_msmon_read(struct mpam_component *comp, struct mon_cfg *ctx,
 	*val = 0;
 
 	err = _msmon_read(comp, &arg);
-	if (err == -EBUSY)
+	if (err == -EBUSY && !irqs_disabled())
 		wait_jiffies = usecs_to_jiffies(comp->class->nrdy_usec);
 
 	while (wait_jiffies)
