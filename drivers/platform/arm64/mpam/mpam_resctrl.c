@@ -131,6 +131,7 @@ static void mpam_resctrl_update_mbm_cntrs(void)
 {
 	struct mpam_resctrl_res *res = &mpam_resctrl_controls[RDT_RESOURCE_L3];
 	struct rdt_resource *l3 = &res->resctrl_res;
+	u8 mon_per_partid = 1;
 
 	if (!res->class || !res->mpam_monitors_pre_allocated)
 		return;
@@ -305,20 +306,39 @@ static void *resctrl_arch_mon_ctx_alloc_no_wait(struct rdt_resource *r,
 						enum resctrl_event_id evtid)
 {
 	struct mpam_resctrl_res *res;
-	u32 *ret = kmalloc(sizeof(*ret), GFP_ATOMIC);
+	u32 *ret;
 
+	res = container_of(r, struct mpam_resctrl_res, resctrl_res);
+
+	if (res->class != mpam_resctrl_counters[evtid])
+		return ERR_PTR(-EINVAL);
+
+	/* Pre-allocated monitors? */
+	switch (evtid) {
+	case QOS_L3_MBM_LOCAL_EVENT_ID:
+	case QOS_L3_MBM_TOTAL_EVENT_ID:
+		if (res->mpam_monitors_free_runing)
+			return mon_is_rmid_idx;
+		else if (res->mpam_monitors_pre_allocated) {
+			return mon_is_assigned;
+		}
+	default:
+		break;
+	}
+
+	ret = kmalloc(sizeof(*ret), GFP_ATOMIC);
 	if (!ret)
 		return ERR_PTR(-ENOMEM);
 
+
 	switch (evtid) {
 	case QOS_L3_OCCUP_EVENT_ID:
-		res = container_of(r, struct mpam_resctrl_res, resctrl_res);
-
 		*ret = mpam_alloc_csu_mon(res->class);
 		return ret;
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
 	case QOS_L3_MBM_TOTAL_EVENT_ID:
-		return mon_is_rmid_idx;
+		*ret = mpam_alloc_mbwu_mon(res->class);
+		return ret;
 	}
 
 	return ERR_PTR(-EOPNOTSUPP);
@@ -364,8 +384,14 @@ void resctrl_arch_mon_ctx_free(struct rdt_resource *r,
 		mpam_free_csu_mon(res->class, mon);
 		wake_up(&resctrl_mon_ctx_waiters);
 		return;
-	case QOS_L3_MBM_TOTAL_EVENT_ID:
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
+	case QOS_L3_MBM_TOTAL_EVENT_ID:
+		res = container_of(r, struct mpam_resctrl_res, resctrl_res);
+
+		mpam_free_mbwu_mon(res->class, mon);
+		wake_up(&resctrl_mon_ctx_waiters);
+		return;
+	default:
 		return;
 	}
 }
@@ -386,8 +412,8 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_mon_domain *d,
 			   u32 closid, u32 rmid, enum resctrl_event_id eventid,
 			   u64 *val, void *arch_mon_ctx)
 {
-	int err;
 	u64 cdp_val;
+	int err, idx;
 	struct mon_cfg cfg;
 	struct mpam_resctrl_dom *dom;
 	u32 mon = *(u32 *)arch_mon_ctx;
@@ -397,25 +423,35 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_mon_domain *d,
 
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_mon_dom);
 
+	cfg.match_pmg = true;
+	cfg.pmg = rmid;
+
 	switch (eventid) {
 	case QOS_L3_OCCUP_EVENT_ID:
 		type = mpam_feat_msmon_csu;
 		break;
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
+		type = mpam_feat_msmon_mbwu;
+		cfg.opts = resctrl_evt_config_to_mpam(dom->mbm_local_evt_cfg);
+		break;
 	case QOS_L3_MBM_TOTAL_EVENT_ID:
 		type = mpam_feat_msmon_mbwu;
+		cfg.opts = resctrl_evt_config_to_mpam(dom->mbm_local_evt_cfg);
 		break;
 	default:
 		return -EINVAL;
 	}
 
 	cfg.mon = mon;
+	idx = resctrl_arch_rmid_idx_encode(closid, rmid);
 	if (cfg.mon == USE_RMID_IDX)
-		cfg.mon = resctrl_arch_rmid_idx_encode(closid, rmid);
-
-	cfg.match_pmg = true;
-	cfg.pmg = rmid;
-	cfg.opts = resctrl_evt_config_to_mpam(dom->mbm_local_evt_cfg);
+		cfg.mon = idx;
+	if (cfg.mon == USE_ABMC_ASSIGNED) {
+		cfg.mon = dom->abmc_monitors[idx];
+	}
+	if (cfg.mon == ABMC_UNALLOCATED) {
+		return -EINVAL;
+	}
 
 	if (irqs_disabled()) {
 		/* Check if we can access this domain without an IPI */
@@ -542,15 +578,8 @@ static bool class_has_usable_mbwu(struct mpam_class *class)
 	if (!mpam_has_feature(mpam_feat_msmon_mbwu, cprops))
 		return false;
 
-	/*
-	 * resctrl expects the bandwidth counters to be free running,
-	 * which means we need as many monitors as resctrl has
-	 * control/monitor groups.
-	 */
-	if (cprops->num_mbwu_mon < resctrl_arch_system_num_rmid_idx())
-		return false;
-
-	return (mpam_partid_max > 1) || (mpam_pmg_max != 0);
+	/* ABMC support means fewer monitors than needed can be supported */
+	return cprops->num_mbwu_mon != 0;
 }
 
 /*
@@ -952,7 +981,34 @@ void resctrl_arch_reset_rmid_all(struct rdt_resource *r, struct rdt_mon_domain *
 
 bool resctrl_arch_get_abmc_enabled(void)
 {
-	return false;
+	struct mpam_resctrl_res *res = &mpam_resctrl_controls[RDT_RESOURCE_L3];
+
+	if (!res->class)
+		return false;
+
+	return res->assign_mode;
+}
+
+static DEFINE_MUTEX(abmc_lock);
+
+static void mpam_abmc_mon_free(struct mpam_resctrl_res *res)
+{
+	struct rdt_resource *r = &res->resctrl_res;
+	int i, num_mon, mon;
+
+	lockdep_assert_held(&abmc_lock);
+
+	num_mon = r->mon.num_mbm_cntrs;
+	if (res->mon_vals_for_abmc) {
+		for (i = 0; i < num_mon; i++) {
+			mon = res->mon_vals_for_abmc[i];
+			if (mon == ABMC_UNALLOCATED)
+				continue;
+			mpam_free_mbwu_mon(res->class, mon);
+		}
+
+		kfree(res->mon_vals_for_abmc);
+	}
 }
 
 /* If the state is modified, this implicitly resets the L3 counters */
@@ -961,23 +1017,66 @@ int resctrl_arch_mbm_cntr_assign_enable(void)
 	struct mpam_resctrl_res *res = &mpam_resctrl_controls[RDT_RESOURCE_L3];
 	struct rdt_resource *r = &res->resctrl_res;
 	struct rdt_mon_domain *d;
+	int i, num_mon, err = 0;
 
-	if (!resctrl_arch_get_abmc_enabled())
-		return 0;
-
-	if (!res->class)
+	if (!res->class) {
+		pr_debug("Bad class for ABMC\n");
 		return -EINVAL;
-
-	if (!res->assign_mode) {
-		/* TODO: Allocate all the monitors as resctrl wants to allocate them */
-
-		res->assign_mode = true;
-	        list_for_each_entry(d, &r->mon_domains, hdr.list) {
-			resctrl_arch_reset_rmid_all(r, d);
-		}
 	}
 
-	return 0;
+	mutex_lock(&abmc_lock);
+	if (res->assign_mode) {
+		pr_debug("ABMC already enabled for this resource\n");
+		err = 0;
+		goto out_unlock;
+	}
+
+	if (!r->mon.num_mbm_cntrs) {
+		pr_debug("No monitors available for this resource\n");
+		err = -EINVAL;
+		goto out_unlock;
+	}
+
+	/* Allocate all the monitors as resctrl wants to allocate them */
+	num_mon = r->mon.num_mbm_cntrs;
+	res->mon_vals_for_abmc = kzalloc(num_mon * sizeof(res->mon_vals_for_abmc),
+					 GFP_KERNEL);
+	if (!res->mon_vals_for_abmc) {
+		pr_debug("Failed to allocate ABMC monitor array\n");
+		err = -ENOMEM;
+		goto out_unlock;
+	}
+
+	/* Monitor 0 is valid, so initialise the array to some thing else */
+	for (i = 0; i < num_mon; i++)
+		res->mon_vals_for_abmc[i] = ABMC_UNALLOCATED;
+
+	for (i = 0; i < num_mon; i++) {
+		err = mpam_alloc_mbwu_mon(res->class);
+		if (err < 0) {
+			pr_debug("Failed to allocate %u monitors for ABMC\n", num_mon);
+			break;
+		}
+		res->mon_vals_for_abmc[i] = err;
+		err = 0;
+	}
+
+	if (err) {
+		pr_debug("Freeing monitors\n");
+		mpam_abmc_mon_free(res);
+		goto out_unlock;
+	}
+
+	res->num_preallocated_monitors = num_mon;
+	res->assign_mode = true;
+        list_for_each_entry(d, &r->mon_domains, hdr.list) {
+		resctrl_arch_reset_rmid_all(r, d);
+	}
+
+out_unlock:
+	mutex_unlock(&abmc_lock);
+
+	return err;
 }
 
 /* If the state is modified, this implicitly resets the L3 */
@@ -987,29 +1086,35 @@ void resctrl_arch_mbm_cntr_assign_disable(void)
 	struct rdt_resource *r = &res->resctrl_res;
 	struct rdt_mon_domain *d;
 
-	if (!resctrl_arch_get_abmc_enabled())
-		return;
-
 	if (!res->class)
 		return;
 
+	mutex_lock(&abmc_lock);
 	if (res->assign_mode) {
-		/* TODO: Free all the monitors */
+		/* Free all the monitors */
+		mpam_abmc_mon_free(res);
 
+		res->num_preallocated_monitors = 0;
 		res->assign_mode = false;
 	        list_for_each_entry(d, &r->mon_domains, hdr.list) {
 			resctrl_arch_reset_rmid_all(r, d);
 		}
 	}
+	mutex_unlock(&abmc_lock);
 }
 
 bool resctrl_arch_mbm_cntr_assign_test(struct rdt_resource *r)
 {
 	struct mpam_resctrl_res *res;
+	bool ret;
 
 	res = container_of(r, struct mpam_resctrl_res, resctrl_res);
 
-	return res->assign_mode;
+	mutex_lock(&abmc_lock);
+	ret = res->assign_mode;
+	mutex_unlock(&abmc_lock);
+
+	return ret;
 }
 
 /* Pre-allocate a monitor to this closid/rmid */
@@ -1017,39 +1122,47 @@ int resctrl_arch_assign_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
 			     enum resctrl_event_id evtid, u32 rmid, u32 cntr_id,
 			     u32 closid, bool assign)
 {
-	struct mpam_resctrl_dom *dom;
 	u32 idx = resctrl_arch_rmid_idx_encode(closid, rmid);
+	struct mpam_resctrl_res *res;
+	struct mpam_resctrl_dom *dom;
+	int err = 0;
 
 	if (!resctrl_arch_get_abmc_enabled())
 		return 0;
 
+	res = container_of(r, struct mpam_resctrl_res, resctrl_res);
+	dom = container_of(d, struct mpam_resctrl_dom, resctrl_mon_dom);
+
 	if (WARN_ON_ONCE(idx > resctrl_arch_system_num_rmid_idx()))
 		return -EIO;
 
-	dom = container_of(d, struct mpam_resctrl_dom, resctrl_mon_dom);
+	if (WARN_ON_ONCE(cntr_id > res->num_preallocated_monitors))
+		return -EIO;
+
+	mutex_lock(&abmc_lock);
 	switch (evtid) {
 	case QOS_L3_OCCUP_EVENT_ID:
 		WARN_ON_ONCE(1);
-		return -EINVAL;
+		err = -EINVAL;
+		goto out_unlock;
 	/* The domain can only be one of these */
 	case QOS_L3_MBM_TOTAL_EVENT_ID:
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
 		if (assign)
-			dom->abmc_monitors[idx] = cntr_id;
+			dom->abmc_monitors[idx] = res->mon_vals_for_abmc[cntr_id];
 		else
 			dom->abmc_monitors[idx] = ABMC_UNALLOCATED;
 		break;
 	}
 
-	return 0;
+out_unlock:
+	mutex_unlock(&abmc_lock);
+	return err;
 }
 
-static int mpam_resctrl_abmc_init(struct mpam_resctrl_dom *dom, int nid)
+static int mpam_resctrl_abmc_dom_init(struct mpam_resctrl_dom *dom, int nid)
 {
 	int i, num_idx;
-
-	if (!resctrl_arch_get_abmc_enabled())
-		return 0;
 
 	num_idx = resctrl_arch_system_num_rmid_idx();
 	dom->abmc_monitors = kzalloc_node(num_idx * sizeof(dom->abmc_monitors),
@@ -1058,8 +1171,10 @@ static int mpam_resctrl_abmc_init(struct mpam_resctrl_dom *dom, int nid)
 	if (!dom->abmc_monitors)
 		return -ENOMEM;
 
+	mutex_lock(&abmc_lock);
 	for (i = 0; i < num_idx; i++)
 		dom->abmc_monitors[i] = ABMC_UNALLOCATED;
+	mutex_unlock(&abmc_lock);
 
 	return 0;
 }
@@ -1125,6 +1240,7 @@ static void mpam_resctrl_monitor_init(struct mpam_class *class,
 {
 	struct mpam_resctrl_res *res = &mpam_resctrl_controls[RDT_RESOURCE_L3];
 	struct rdt_resource *l3 = &res->resctrl_res;
+	struct mpam_props *cprops;
 
 	/* Did we find anything for this monitor type? */
 	if (!mpam_resctrl_counters[type])
@@ -1133,6 +1249,34 @@ static void mpam_resctrl_monitor_init(struct mpam_class *class,
 	/* There also needs to be an L3 class */
 	if (!res->class)
 		return;
+
+	cprops = &class->props;
+
+	switch (type) {
+	case QOS_L3_MBM_TOTAL_EVENT_ID:
+	case QOS_L3_MBM_LOCAL_EVENT_ID:
+		/*
+		 * resctrl expects the bandwidth counters to be free running,
+		 * which means to expose the files in the filesystem we need
+		 * as many monitors as resctrl has control/monitor groups.
+		 * Otherwise, enable ABMC.
+		 */
+		if (cprops->num_mbwu_mon >= resctrl_arch_system_num_rmid_idx())
+			res->mpam_monitors_free_runing = true;
+		else
+			res->mpam_monitors_pre_allocated = true;
+
+		if (res->mpam_monitors_pre_allocated) {
+			l3->mon.mbm_cntr_assignable = true;
+			mpam_resctrl_update_mbm_cntrs();
+
+			/* ABMC defaults to on */
+			resctrl_arch_mbm_cntr_assign_enable();
+		}
+		break;
+	default:
+		break;
+	}
 
 	/* Called multiple times!, once per event type */
 	if (exposed_mon_capable) {
@@ -1476,7 +1620,7 @@ mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
 	dom->comp = comp;
 	dom->mbm_local_evt_cfg = MPAM_RESTRL_EVT_CONFIG_VALID;
 
-	mpam_resctrl_abmc_init(dom, cpu_to_node(cpu));
+	mpam_resctrl_abmc_dom_init(dom, cpu_to_node(cpu));
 
 	ctrl_d = &dom->resctrl_ctrl_dom;
 	mpam_resctrl_domain_hdr_init(cpu, class, comp, &ctrl_d->hdr);

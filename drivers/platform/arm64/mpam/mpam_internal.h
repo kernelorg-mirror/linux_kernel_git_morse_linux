@@ -420,6 +420,19 @@ struct mpam_resctrl_res {
 	struct rdt_resource	resctrl_res;
 
 	bool			assign_mode;
+
+	/* Whether counters were pre-allocated and are left running */
+	bool mpam_monitors_free_runing;
+
+	/* Whether counters have to be pre-allocated via ABMC */
+	bool mpam_monitors_pre_allocated;
+
+	/*
+	 * If ABMC is supported, array of hardare monitor numbers managed
+	 * by resctrl.
+	 */
+	 u32			*mon_vals_for_abmc;
+	 u32			num_preallocated_monitors;
 };
 
 static inline int mpam_alloc_csu_mon(struct mpam_class *class)
