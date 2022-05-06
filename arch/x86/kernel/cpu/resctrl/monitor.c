@@ -225,13 +225,15 @@ void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_domain *d,
 {
 	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
 	struct arch_mbm_state *am;
+	u64 msr_val;
 
 	am = get_arch_mbm_state(hw_dom, rmid, eventid);
 	if (am) {
 		memset(am, 0, sizeof(*am));
 
 		/* Record any initial, non-zero count value. */
-		__rmid_read(rmid, eventid, &am->prev_msr);
+		__rmid_read(rmid, eventid, &msr_val);
+		atomic64_set(&am->prev_msr, msr_val);
 	}
 }
 
@@ -266,12 +268,17 @@ int resctrl_arch_rmid_read(struct rdt_resource *r, struct rdt_domain *d,
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	struct rdt_hw_domain *hw_dom = resctrl_to_arch_dom(d);
+	u64 start_msr_val, old_msr_val, msr_val, chunks;
 	struct arch_mbm_state *am;
-	u64 msr_val, chunks;
-	int ret;
+	int ret = 0;
 
 	if (!cpumask_test_cpu(smp_processor_id(), &d->cpu_mask))
 		return -EINVAL;
+
+interrupted:
+	am = get_arch_mbm_state(hw_dom, rmid, eventid);
+	if (am)
+		start_msr_val = atomic64_read(&am->prev_msr);
 
 	ret = __rmid_read(rmid, eventid, &msr_val);
 	if (ret)
@@ -279,10 +286,17 @@ int resctrl_arch_rmid_read(struct rdt_resource *r, struct rdt_domain *d,
 
 	am = get_arch_mbm_state(hw_dom, rmid, eventid);
 	if (am) {
-		am->chunks += mbm_overflow_count(am->prev_msr, msr_val,
-						 hw_res->mbm_width);
-		chunks = get_corrected_mbm_count(rmid, am->chunks);
-		am->prev_msr = msr_val;
+		old_msr_val = atomic64_cmpxchg(&am->prev_msr, start_msr_val,
+					       msr_val);
+		if (old_msr_val != start_msr_val)
+			goto interrupted;
+
+		chunks = mbm_overflow_count(start_msr_val, msr_val,
+					    hw_res->mbm_width);
+		atomic64_add(chunks, &am->chunks);
+
+		chunks = get_corrected_mbm_count(rmid,
+						 atomic64_read(&am->chunks));
 	} else {
 		chunks = msr_val;
 	}
