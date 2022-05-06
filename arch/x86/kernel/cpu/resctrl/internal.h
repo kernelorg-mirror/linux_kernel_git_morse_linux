@@ -8,6 +8,7 @@
 #include <linux/fs_context.h>
 #include <linux/jump_label.h>
 #include <linux/tick.h>
+#include <asm/atomic.h>
 #include <asm/resctrl.h>
 
 #define L3_QOS_CDP_ENABLE		0x01ULL
@@ -338,8 +339,8 @@ struct mbm_state {
  *		find this struct.
  */
 struct arch_mbm_state {
-	u64	chunks;
-	u64	prev_msr;
+	atomic64_t	chunks;
+	atomic64_t	prev_msr;
 };
 
 /**
