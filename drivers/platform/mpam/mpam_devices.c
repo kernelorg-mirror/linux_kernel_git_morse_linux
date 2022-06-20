@@ -1890,7 +1890,7 @@ static void __destroy_component_cfg(struct mpam_component *comp)
 		spin_unlock_irqrestore(&ris->msc->mon_sel_lock, flags);
 		spin_unlock(&ris->msc->lock);
 
-		kfree(ris->mbwu_state);
+		kfree(mbwu_state);
 	}
 }
 

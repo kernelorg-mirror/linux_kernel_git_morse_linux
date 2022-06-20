@@ -237,8 +237,8 @@ static void resctrl_pmu_event_del(struct perf_event *event, int flags)
 static int resctrl_pmu_event_idx(struct perf_event *event)
 {
 	u16 event_num = get_event(event);
+	u64 id = get_resctrl_id(event);
 	u32 closid, rmid, idx;
-	u64 id = id;
 
 	__resctrl_id_decode(id, &closid, &rmid);
 	idx = resctrl_arch_rmid_idx_encode(closid, rmid);

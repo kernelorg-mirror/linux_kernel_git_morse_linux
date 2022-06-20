@@ -227,6 +227,8 @@ int resctrl_arch_set_iommu_closid_rmid(struct iommu_group *group, u32 closid,
 
 	if (cdp_enabled)
 		partid = closid << 1;
+	else
+		partid = closid;
 
 	return ops->set_group_qos_params(group, partid, rmid);
 }
@@ -389,6 +391,8 @@ void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_domain *d,
 	cfg.mon = resctrl_arch_rmid_idx_encode(closid, rmid);
 	cfg.match_pmg = true;
 	cfg.pmg = rmid;
+
+	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
 
 	if (cdp_enabled) {
 		cfg.partid = closid << 1;
