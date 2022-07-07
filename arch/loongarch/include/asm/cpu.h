@@ -128,10 +128,4 @@ enum cpu_type_enum {
 #define LOONGARCH_CPU_HYPERVISOR	BIT_ULL(CPU_FEATURE_HYPERVISOR)
 #define LOONGARCH_CPU_PTW		BIT_ULL(CPU_FEATURE_PTW)
 
-#if !defined(__ASSEMBLY__)
-#ifdef CONFIG_HOTPLUG_CPU
-void arch_unregister_cpu(int cpu);
-#endif
-#endif /* ! __ASSEMBLY__ */
-
 #endif /* _ASM_CPU_H */

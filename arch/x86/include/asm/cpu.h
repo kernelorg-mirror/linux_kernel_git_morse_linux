@@ -24,7 +24,6 @@ static inline void prefill_possible_map(void) {}
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_HOTPLUG_CPU
-extern void arch_unregister_cpu(int);
 extern void soft_restart_cpu(void);
 #endif
 
