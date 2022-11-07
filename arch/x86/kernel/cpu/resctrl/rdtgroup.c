@@ -3295,10 +3295,92 @@ static int rdtgroup_show_options(struct seq_file *seq, struct kernfs_root *kf)
 	return 0;
 }
 
+/*
+ * Create a new monitor group that duplicates the RMID, repaint the
+ * tasks, then remove the old monitor group.
+ */
+int rdtgroup_move_mon_group(struct kernfs_node *kn, struct kernfs_node *new_parent,
+			    const char *new_name)
+{
+	struct rdtgroup *src_mongrp, *src_ctrlgrp, *dst_ctrlgrp, *dst_mongrp;
+	struct task_struct *p, *t;
+	u32 new_rmid, in_use_rmid;
+	cpumask_var_t kick_cpus;
+	int err, cpu;
+
+	if (!is_mon_groups(new_parent, new_name))
+		return -EPERM;
+
+	if (!zalloc_cpumask_var(&kick_cpus, GFP_KERNEL))
+		return -ENOMEM;
+
+	/* On success, mkdir returns with the rdtgroup lock held */
+	err = rdtgroup_mkdir_mon_lock(new_parent, new_name, S_IFDIR,
+				      &dst_mongrp);
+	if (err)
+		goto out_free_cpumask;
+
+	dst_ctrlgrp = kernfs_to_rdtgroup(new_parent);
+	src_mongrp = kernfs_to_rdtgroup(kn);
+	__rdtgroup_kn_also_lock(src_mongrp);
+	src_ctrlgrp = src_mongrp->mon.parent;
+
+	in_use_rmid = src_mongrp->mon.rmid;
+	new_rmid = dst_mongrp->mon.rmid;
+
+	/* Only monitor groups can be moved between control groups */
+	if (src_mongrp->type != RDTMON_GROUP) {
+		/* No tasks or CPUs will be moved as the dst_mongrp is empty */
+		rdtgroup_rmdir_mon(dst_mongrp, kick_cpus);
+		err = -EINVAL;
+		goto out_unlock;
+	}
+
+	/*
+	 * Keep the old RMID. Architecture's that can't do this skip these
+	 * lines.
+	 */
+	dst_mongrp->mon.rmid = in_use_rmid;
+	src_mongrp->mon.rmid = new_rmid;
+
+	/*
+	 * Move tasks can't be used here as is_closid_match() only matches for
+	 * control groups, and is_rmid_match() for monitor groups.
+	 */
+	read_lock(&tasklist_lock);
+	for_each_process_thread(p, t) {
+		if (t->closid == src_ctrlgrp->closid && t->rmid == in_use_rmid) {
+			WRITE_ONCE(t->closid, dst_ctrlgrp->closid);
+			WRITE_ONCE(t->rmid, dst_mongrp->mon.rmid);
+
+			if (IS_ENABLED(CONFIG_SMP) && task_curr(t))
+				cpumask_set_cpu(task_cpu(t), kick_cpus);
+		}
+	}
+	read_unlock(&tasklist_lock);
+
+	/* Update per cpu rmid of the moved CPUs first */
+	for_each_cpu(cpu, &src_mongrp->cpu_mask) {
+		per_cpu(pqr_state.default_closid, cpu) = dst_ctrlgrp->closid;
+		per_cpu(pqr_state.default_rmid, cpu) = dst_mongrp->mon.rmid;
+	}
+
+	rdtgroup_rmdir_mon(src_mongrp, kick_cpus);
+
+out_unlock:
+	rdtgroup_kn_unlock(new_parent);
+	__rdtgroup_kn_also_unlock(src_mongrp);
+out_free_cpumask:
+	free_cpumask_var(kick_cpus);
+
+	return err;
+}
+
 static struct kernfs_syscall_ops rdtgroup_kf_syscall_ops = {
 	.mkdir		= rdtgroup_mkdir,
 	.rmdir		= rdtgroup_rmdir,
 	.show_options	= rdtgroup_show_options,
+	.rename		= rdtgroup_move_mon_group,
 };
 
 static int __init rdtgroup_setup_root(void)
