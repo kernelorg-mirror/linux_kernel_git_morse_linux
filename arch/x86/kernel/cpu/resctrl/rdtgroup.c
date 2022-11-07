@@ -995,6 +995,14 @@ static int rdt_num_rmids_show(struct kernfs_open_file *of,
 	return 0;
 }
 
+static int resctrl_mon_group_moves_show(struct kernfs_open_file *of,
+					struct seq_file *seq, void *v)
+{
+	seq_puts(seq, "1\n");
+
+	return 0;
+}
+
 static int rdt_mon_features_show(struct kernfs_open_file *of,
 				 struct seq_file *seq, void *v)
 {
@@ -1447,6 +1455,13 @@ static struct rftype res_common_files[] = {
 		.mode		= 0444,
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= rdt_num_rmids_show,
+		.fflags		= RF_MON_INFO,
+	},
+	{
+		.name		= "counters_survive_mon_group_moves",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= resctrl_mon_group_moves_show,
 		.fflags		= RF_MON_INFO,
 	},
 	{

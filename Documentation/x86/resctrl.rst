@@ -167,6 +167,19 @@ with the following files:
 		bytes) at which a previously used LLC_occupancy
 		counter can be considered for re-use.
 
+"counters_survive_mon_group_moves":
+		If the value of this file is:
+			"1":	the bandwidth monitors for this monitor group
+				are unaffected by the move, and continue
+				counting traffic that was generated before the
+				move.
+			"0":	the bandwidth counters may only report traffic
+				that was generated after the move.
+
+		The presence of this file indicates that monitor groups
+		can be moved between control groups as a way of moving
+		a group of tasks.
+
 Finally, in the top level of the "info" directory there is a file
 named "last_cmd_status". This is reset with every "command" issued
 via the file system (making new directories or writing to any of the
