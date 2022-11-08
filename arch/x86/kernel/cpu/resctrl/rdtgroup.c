@@ -2898,27 +2898,23 @@ static void mkdir_rdt_prepare_rmid_free(struct rdtgroup *rgrp)
 		free_rmid(rgrp->mon.rmid);
 }
 
-static int mkdir_rdt_prepare(struct kernfs_node *parent_kn,
+/* Call with prdtgrp locked */
+static int mkdir_rdt_prepare(struct rdtgroup *prdtgrp,
+			     struct kernfs_node *parent_kn,
 			     const char *name, umode_t mode,
 			     enum rdt_group_type rtype, struct rdtgroup **r)
 {
-	struct rdtgroup *prdtgrp, *rdtgrp;
+	struct rdtgroup *rdtgrp;
 	struct kernfs_node *kn;
 	uint files = 0;
 	int ret;
-
-	prdtgrp = rdtgroup_kn_lock_live(parent_kn);
-	if (!prdtgrp) {
-		ret = -ENODEV;
-		goto out_unlock;
-	}
 
 	if (rtype == RDTMON_GROUP &&
 	    (prdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP ||
 	     prdtgrp->mode == RDT_MODE_PSEUDO_LOCKED)) {
 		ret = -EINVAL;
 		rdt_last_cmd_puts("Pseudo-locking in progress\n");
-		goto out_unlock;
+		goto out;
 	}
 
 	/* allocate the rdtgroup. */
@@ -2926,7 +2922,7 @@ static int mkdir_rdt_prepare(struct kernfs_node *parent_kn,
 	if (!rdtgrp) {
 		ret = -ENOSPC;
 		rdt_last_cmd_puts("Kernel out of memory\n");
-		goto out_unlock;
+		goto out;
 	}
 	*r = rdtgrp;
 	rdtgrp->mon.parent = prdtgrp;
@@ -2965,9 +2961,6 @@ static int mkdir_rdt_prepare(struct kernfs_node *parent_kn,
 
 	kernfs_activate(kn);
 
-	/*
-	 * The caller unlocks the parent_kn upon success.
-	 */
 	return 0;
 
 out_destroy:
@@ -2975,8 +2968,7 @@ out_destroy:
 	kernfs_remove(rdtgrp->kn);
 out_free_rgrp:
 	kfree(rdtgrp);
-out_unlock:
-	rdtgroup_kn_unlock(parent_kn);
+out:
 	return ret;
 }
 
@@ -2997,7 +2989,11 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 	struct rdtgroup *rdtgrp, *prgrp;
 	int ret;
 
-	ret = mkdir_rdt_prepare(parent_kn, name, mode, RDTMON_GROUP, &rdtgrp);
+	prgrp = rdtgroup_kn_lock_live(parent_kn);
+	if (!prgrp)
+		return -ENODEV;
+
+	ret = mkdir_rdt_prepare(prgrp, parent_kn, name, mode, RDTMON_GROUP, &rdtgrp);
 	if (ret)
 		return ret;
 
@@ -3028,12 +3024,16 @@ out_unlock:
 static int rdtgroup_mkdir_ctrl_mon(struct kernfs_node *parent_kn,
 				   const char *name, umode_t mode)
 {
-	struct rdtgroup *rdtgrp;
+	struct rdtgroup *rdtgrp, *prgrp;
 	struct kernfs_node *kn;
 	u32 closid;
 	int ret;
 
-	ret = mkdir_rdt_prepare(parent_kn, name, mode, RDTCTRL_GROUP, &rdtgrp);
+	prgrp = rdtgroup_kn_lock_live(parent_kn);
+	if (!prgrp)
+		return -ENODEV;
+
+	ret = mkdir_rdt_prepare(prgrp, parent_kn, name, mode, RDTCTRL_GROUP, &rdtgrp);
 	if (ret)
 		return ret;
 
