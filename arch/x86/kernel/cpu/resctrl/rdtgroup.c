@@ -2026,6 +2026,13 @@ static struct rdtgroup *kernfs_to_rdtgroup(struct kernfs_node *kn)
 	}
 }
 
+/* Used to lock a second rdtgroup while holding rdtgroup_mutex */
+void __rdtgroup_kn_also_lock(struct rdtgroup *rdtgrp)
+{
+	atomic_inc(&rdtgrp->waitcount);
+	kernfs_break_active_protection(rdtgrp->kn);
+}
+
 struct rdtgroup *rdtgroup_kn_lock_live(struct kernfs_node *kn)
 {
 	struct rdtgroup *rdtgrp = kernfs_to_rdtgroup(kn);
@@ -2033,8 +2040,7 @@ struct rdtgroup *rdtgroup_kn_lock_live(struct kernfs_node *kn)
 	if (!rdtgrp)
 		return NULL;
 
-	atomic_inc(&rdtgrp->waitcount);
-	kernfs_break_active_protection(kn);
+	__rdtgroup_kn_also_lock(rdtgrp);
 
 	mutex_lock(&rdtgroup_mutex);
 
@@ -2043,6 +2049,21 @@ struct rdtgroup *rdtgroup_kn_lock_live(struct kernfs_node *kn)
 		return NULL;
 
 	return rdtgrp;
+}
+
+/* Used to unlock a second rdtgroup after dropping the rdtgroup_mutex */
+void __rdtgroup_kn_also_unlock(struct rdtgroup *rdtgrp)
+{
+	if (atomic_dec_and_test(&rdtgrp->waitcount) &&
+	    (rdtgrp->flags & RDT_DELETED)) {
+		if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP ||
+		    rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED)
+			rdtgroup_pseudo_lock_remove(rdtgrp);
+		kernfs_unbreak_active_protection(rdtgrp->kn);
+		rdtgroup_remove(rdtgrp);
+	} else {
+		kernfs_unbreak_active_protection(rdtgrp->kn);
+	}
 }
 
 void rdtgroup_kn_unlock(struct kernfs_node *kn)
@@ -2054,16 +2075,7 @@ void rdtgroup_kn_unlock(struct kernfs_node *kn)
 
 	mutex_unlock(&rdtgroup_mutex);
 
-	if (atomic_dec_and_test(&rdtgrp->waitcount) &&
-	    (rdtgrp->flags & RDT_DELETED)) {
-		if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP ||
-		    rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED)
-			rdtgroup_pseudo_lock_remove(rdtgrp);
-		kernfs_unbreak_active_protection(kn);
-		rdtgroup_remove(rdtgrp);
-	} else {
-		kernfs_unbreak_active_protection(kn);
-	}
+	__rdtgroup_kn_also_unlock(rdtgrp);
 }
 
 static int mkdir_mondata_all(struct kernfs_node *parent_kn,
