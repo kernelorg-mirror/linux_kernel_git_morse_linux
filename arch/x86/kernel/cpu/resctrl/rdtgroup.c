@@ -2983,8 +2983,9 @@ static void mkdir_rdt_prepare_clean(struct rdtgroup *rgrp)
  * and monitor group(ctrl_mon). This is a resource group
  * to monitor a subset of tasks and cpus in its parent ctrl_mon group.
  */
-static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
-			      const char *name, umode_t mode)
+static int rdtgroup_mkdir_mon_lock(struct kernfs_node *parent_kn,
+				   const char *name, umode_t mode,
+				   struct rdtgroup **new_rdtgrp)
 {
 	struct rdtgroup *rdtgrp, *prgrp;
 	int ret;
@@ -2993,9 +2994,16 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 	if (!prgrp)
 		return -ENODEV;
 
+	if (prgrp->type != RDTCTRL_GROUP) {
+		rdtgroup_kn_unlock(parent_kn);
+		return -EINVAL;
+	}
+
 	ret = mkdir_rdt_prepare(prgrp, parent_kn, name, mode, RDTMON_GROUP, &rdtgrp);
-	if (ret)
+	if (ret) {
+		rdtgroup_kn_unlock(parent_kn);
 		return ret;
+	}
 
 	prgrp = rdtgrp->mon.parent;
 	rdtgrp->closid = prgrp->closid;
@@ -3003,7 +3011,8 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 	ret = mkdir_rdt_prepare_rmid_alloc(rdtgrp);
 	if (ret) {
 		mkdir_rdt_prepare_clean(rdtgrp);
-		goto out_unlock;
+		rdtgroup_kn_unlock(parent_kn);
+		return ret;
 	}
 
 	/*
@@ -3011,10 +3020,22 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 	 * ctrl_mon group has to track.
 	 */
 	list_add_tail(&rdtgrp->mon.crdtgrp_list, &prgrp->mon.crdtgrp_list);
+	*new_rdtgrp = rdtgrp;
 
-out_unlock:
-	rdtgroup_kn_unlock(parent_kn);
 	return ret;
+}
+
+static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
+			      const char *name, umode_t mode)
+{
+	struct rdtgroup *rdtgrp;
+	int err;
+
+	err = rdtgroup_mkdir_mon_lock(parent_kn, name, mode, &rdtgrp);
+	if (!err)
+		rdtgroup_kn_unlock(parent_kn);
+
+	return err;
 }
 
 /*
