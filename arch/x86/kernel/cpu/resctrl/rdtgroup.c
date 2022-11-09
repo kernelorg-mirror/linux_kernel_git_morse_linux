@@ -1458,6 +1458,21 @@ static struct rftype res_common_files[] = {
 		.fflags		= RF_MON_INFO,
 	},
 	{
+		.name		= "total_mon_groups",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_num_rmids_show,
+		.fflags		= RF_MON_INFO,
+	},
+	{
+		.name		= "num_mon_groups_per_ctrl_group",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_num_rmids_show,
+		.fflags		= RF_MON_INFO,
+	},
+
+	{
 		.name		= "counters_survive_mon_group_moves",
 		.mode		= 0444,
 		.kf_ops		= &rdtgroup_kf_single_ops,

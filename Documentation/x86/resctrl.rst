@@ -154,9 +154,26 @@ If RDT monitoring is available there will be an "L3_MON" directory
 with the following files:
 
 "num_rmids":
-		The number of RMIDs available. This is the
-		upper bound for how many "CTRL_MON" + "MON"
-		groups can be created.
+		Deprecated. See total_mon_groups.
+
+"total_mon_groups":
+		The total number of monitor groups that can be created.
+		This is the upper bound for how many "CTRL_MON" + "MON"
+		groups can be created as each "CTRL_MON" group can also
+		be monitored.
+		Depending on the grouping used, the actual number may be
+		lower. See num_mon_groups_per_ctrl_group.
+
+"num_mon_groups_per_ctrl_group":
+		The number of monitor groups that can be created for each
+		control group. This is the upper bound for how many "MON"
+		groups can be created within a "CTRL_MON" group. The
+		"CTRL_MON" group also counts towards this number as the
+		"CTRL_MON" group can also be monitored.
+		Depending on the usage of the system over time, some
+		hardware ids for monitor groups may still have stale data
+		in the CPU caches, and be unavailable for allocation. The
+		actual number of monitor groups available may be lower.
 
 "mon_features":
 		Lists the monitoring events if
