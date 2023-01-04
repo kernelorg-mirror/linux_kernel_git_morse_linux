@@ -49,7 +49,7 @@ int __init parse_acpi_topology(void)
 		return 0;
 
 	for_each_possible_cpu(cpu) {
-		int i, cache_id;
+		int i, cache_id, fw_level;
 
 		topology_id = find_acpi_cpu_topology(cpu, 0);
 		if (topology_id < 0)
@@ -66,8 +66,7 @@ int __init parse_acpi_topology(void)
 		topology_id = find_acpi_cpu_topology_package(cpu);
 		cpu_topology[cpu].package_id = topology_id;
 
-		i = acpi_find_last_cache_level(cpu);
-
+		i = acpi_get_cache_info(cpu, &fw_level, NULL);
 		if (i > 0) {
 			/*
 			 * this is the only part of cpu_topology that has
