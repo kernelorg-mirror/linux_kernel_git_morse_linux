@@ -365,7 +365,7 @@ static int __init cosa_init(void)
 		err = -ENODEV;
 		goto out;
 	}
-	cosa_class = class_create(THIS_MODULE, "cosa");
+	cosa_class = class_create("cosa");
 	if (IS_ERR(cosa_class)) {
 		err = PTR_ERR(cosa_class);
 		goto out_chrdev;

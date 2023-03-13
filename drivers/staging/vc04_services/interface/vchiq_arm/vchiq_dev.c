@@ -1377,7 +1377,7 @@ int vchiq_register_chrdev(struct device *parent)
 	struct device *vchiq_dev;
 	int ret;
 
-	vchiq_class = class_create(THIS_MODULE, DEVICE_NAME);
+	vchiq_class = class_create(DEVICE_NAME);
 	if (IS_ERR(vchiq_class)) {
 		pr_err("Failed to create vchiq class\n");
 		ret = PTR_ERR(vchiq_class);

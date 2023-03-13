@@ -690,7 +690,7 @@ static int __init pg_init(void)
 		goto out;
 	}
 	major = err;	/* In case the user specified `major=0' (dynamic) */
-	pg_class = class_create(THIS_MODULE, "pg");
+	pg_class = class_create("pg");
 	if (IS_ERR(pg_class)) {
 		err = PTR_ERR(pg_class);
 		goto out_chrdev;

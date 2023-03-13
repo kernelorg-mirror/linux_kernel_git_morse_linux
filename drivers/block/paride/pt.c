@@ -983,7 +983,7 @@ static int __init pt_init(void)
 		goto out;
 	}
 	major = err;
-	pt_class = class_create(THIS_MODULE, "pt");
+	pt_class = class_create("pt");
 	if (IS_ERR(pt_class)) {
 		err = PTR_ERR(pt_class);
 		goto out_chrdev;

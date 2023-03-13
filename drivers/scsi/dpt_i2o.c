@@ -262,7 +262,7 @@ rebuild_sys_tab:
 		adpt_inquiry(pHba);
 	}
 
-	adpt_sysfs_class = class_create(THIS_MODULE, "dpt_i2o");
+	adpt_sysfs_class = class_create("dpt_i2o");
 	if (IS_ERR(adpt_sysfs_class)) {
 		printk(KERN_WARNING"dpti: unable to create dpt_i2o class\n");
 		adpt_sysfs_class = NULL;

@@ -1780,7 +1780,7 @@ static int usb_udc_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 static int __init usb_udc_init(void)
 {
-	udc_class = class_create(THIS_MODULE, "udc");
+	udc_class = class_create("udc");
 	if (IS_ERR(udc_class)) {
 		pr_err("failed to create udc class --> %ld\n",
 				PTR_ERR(udc_class));
