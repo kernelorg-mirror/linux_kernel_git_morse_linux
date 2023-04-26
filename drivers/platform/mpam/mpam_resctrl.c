@@ -93,6 +93,17 @@ bool resctrl_arch_get_cdp_enabled(enum resctrl_res_level rid)
 	}
 }
 
+static u32 closid_to_partid(u32 closid)
+{
+	/* partid-0 is reserved: closid-0 is partid-1.  */
+	return closid + 1;
+}
+
+static u32 partid_to_closid(u32 partid)
+{
+	return partid - 1;
+}
+
 int resctrl_arch_set_cdp_enabled(enum resctrl_res_level ignored, bool enable)
 {
 	u64 regval;
@@ -100,7 +111,7 @@ int resctrl_arch_set_cdp_enabled(enum resctrl_res_level ignored, bool enable)
 
 	cdp_enabled = enable;
 
-	partid = RESCTRL_RESERVED_CLOSID;
+	partid = closid_to_partid(RESCTRL_RESERVED_CLOSID);
 
 	if (enable) {
 		partid_d = resctrl_get_config_index(partid, CDP_CODE);
@@ -130,15 +141,25 @@ static bool mpam_resctrl_hide_cdp(enum resctrl_res_level rid)
  */
 u32 resctrl_arch_get_num_closid(struct rdt_resource *ignored)
 {
-	return min((u32)mpam_partid_max + 1, (u32)RESCTRL_MAX_CLOSID);
+	u32 num_partid = mpam_partid_max + 1;
+
+	/*
+	 * PARTID-0 is the default PARTID and is used by hardware that has
+	 * not been configured by the MPAM driver, such as the GIC-ITS.
+	 * PARTID-0 is also used by the kernel for servicing interrupts.
+	 * PARTID-0 is reserved, and hidden from restrl.
+	 */
+	num_partid -= 1;
+
+	return min(num_partid, (u32)RESCTRL_MAX_CLOSID);
 }
 
 u32 resctrl_arch_system_num_rmid_idx(void)
 {
 	u8 closid_shift = fls(mpam_pmg_max);
-	u32 num_partid = resctrl_arch_get_num_closid(NULL);
+	u32 num_closid = resctrl_arch_get_num_closid(NULL);
 
-	return num_partid << closid_shift;
+	return num_closid << closid_shift;
 }
 
 u32 resctrl_arch_rmid_idx_encode(u32 closid, u32 rmid)
@@ -170,18 +191,20 @@ void resctrl_sched_in(struct task_struct *tsk)
 
 void resctrl_arch_set_cpu_default_closid_rmid(int cpu, u32 closid, u32 pmg)
 {
+	u32 partid = closid_to_partid(closid);
+
 	BUG_ON(closid > U16_MAX);
 	BUG_ON(pmg > U8_MAX);
 
 	if (!cdp_enabled) {
-		mpam_set_cpu_defaults(cpu, closid, closid, pmg, pmg);
+		mpam_set_cpu_defaults(cpu, partid, partid, pmg, pmg);
 	} else {
 		/*
 		 * When CDP is enabled, resctrl halves the closid range and we
 		 * use odd/even partid for one closid.
 		 */
-		u32 partid_d = resctrl_get_config_index(closid, CDP_DATA);
-		u32 partid_i = resctrl_get_config_index(closid, CDP_CODE);
+		u32 partid_d = closid_to_partid(resctrl_get_config_index(closid, CDP_DATA));
+		u32 partid_i = closid_to_partid(resctrl_get_config_index(closid, CDP_CODE));
 
 		mpam_set_cpu_defaults(cpu, partid_d, partid_i, pmg, pmg);
 	}
@@ -203,16 +226,16 @@ void resctrl_arch_sync_cpu_defaults(void *info)
 
 void resctrl_arch_set_closid_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 {
-
+	u32 partid = closid_to_partid(closid);
 
 	BUG_ON(closid > U16_MAX);
 	BUG_ON(rmid > U8_MAX);
 
 	if (!cdp_enabled) {
-		mpam_set_task_partid_pmg(tsk, closid, closid, rmid, rmid);
+		mpam_set_task_partid_pmg(tsk, partid, partid, rmid, rmid);
 	} else {
-		u32 partid_d = resctrl_get_config_index(closid, CDP_DATA);
-		u32 partid_i = resctrl_get_config_index(closid, CDP_CODE);
+		u32 partid_d = closid_to_partid(resctrl_get_config_index(closid, CDP_DATA));
+		u32 partid_i = closid_to_partid(resctrl_get_config_index(closid, CDP_CODE));
 
 		mpam_set_task_partid_pmg(tsk, partid_d, partid_i, rmid, rmid);
 	}
@@ -221,7 +244,8 @@ void resctrl_arch_set_closid_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 bool resctrl_arch_match_closid(struct task_struct *tsk, u32 closid)
 {
 	u64 regval = mpam_get_regval(tsk);
-	u32 tsk_closid = FIELD_GET(MPAM_SYSREG_PARTID_D, regval);
+	u32 tsk_partid = FIELD_GET(MPAM_SYSREG_PARTID_D, regval);
+	u32 tsk_closid = partid_to_closid(tsk_partid);
 
 	if (cdp_enabled)
 		tsk_closid >>= 1;
@@ -233,7 +257,8 @@ bool resctrl_arch_match_closid(struct task_struct *tsk, u32 closid)
 bool resctrl_arch_match_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 {
 	u64 regval = mpam_get_regval(tsk);
-	u32 tsk_closid = FIELD_GET(MPAM_SYSREG_PARTID_D, regval);
+	u32 tsk_partid = FIELD_GET(MPAM_SYSREG_PARTID_D, regval);
+	u32 tsk_closid = partid_to_closid(tsk_partid);
 	u32 tsk_rmid = FIELD_GET(MPAM_SYSREG_PMG_D, regval);
 
 	if (cdp_enabled)
@@ -314,6 +339,7 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 {
 	int err;
 	u64 cdp_val;
+	u32 cdp_closid;
 	struct mon_cfg cfg;
 	struct mpam_resctrl_dom *dom;
 	u32 mon = *(u32 *)arch_mon_ctx;
@@ -344,17 +370,19 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 	cfg.opts = resctrl_evt_config_to_mpam(dom->mbm_local_evt_cfg);
 
 	if (cdp_enabled) {
-		cfg.partid = closid << 1;
+		cdp_closid = resctrl_get_config_index(closid, CDP_CODE);
+		cfg.partid = closid_to_partid(cdp_closid);
 		err = mpam_msmon_read(dom->comp, &cfg, type, val);
 		if (err)
 			return err;
 
-		cfg.partid += 1;
+		cdp_closid = resctrl_get_config_index(closid, CDP_DATA);
+		cfg.partid = closid_to_partid(cdp_closid);
 		err = mpam_msmon_read(dom->comp, &cfg, type, &cdp_val);
 		if (!err)
 			*val += cdp_val;
 	} else {
-		cfg.partid = closid;
+		cfg.partid = closid_to_partid(closid);
 		err = mpam_msmon_read(dom->comp, &cfg, type, val);
 	}
 
@@ -364,6 +392,7 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_domain *d,
 			     u32 closid, u32 rmid, enum resctrl_event_id eventid)
 {
+	u32 cdp_closid;
 	struct mon_cfg cfg;
 	struct mpam_resctrl_dom *dom;
 
@@ -377,13 +406,15 @@ void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_domain *d,
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
 
 	if (cdp_enabled) {
-		cfg.partid = closid << 1;
+		cdp_closid = resctrl_get_config_index(closid, CDP_CODE);
+		cfg.partid = closid_to_partid(cdp_closid);
 		mpam_msmon_reset_mbwu(dom->comp, &cfg);
 
-		cfg.partid += 1;
+		cdp_closid = resctrl_get_config_index(closid, CDP_DATA);
+		cfg.partid = closid_to_partid(cdp_closid);
 		mpam_msmon_reset_mbwu(dom->comp, &cfg);
 	} else {
-		cfg.partid = closid;
+		cfg.partid = closid_to_partid(closid);
 		mpam_msmon_reset_mbwu(dom->comp, &cfg);
 	}
 }
@@ -436,7 +467,8 @@ static bool cache_has_usable_csu(struct mpam_class *class)
 	if (!cprops->num_csu_mon)
 		return false;
 
-	return (mpam_partid_max > 1) || (mpam_pmg_max != 0);
+	/* PARTID-0 is reserved, so we must have at least 2 */
+	return (mpam_partid_max > 2) || (mpam_pmg_max != 0);
 }
 
 bool resctrl_arch_is_llc_occupancy_enabled(void)
@@ -449,6 +481,10 @@ static bool class_has_usable_mbwu(struct mpam_class *class)
 	struct mpam_props *cprops = &class->props;
 
 	if (!mpam_has_feature(mpam_feat_msmon_mbwu, cprops))
+		return false;
+
+	/* PARTID-0 is reserved, so we must have at least 2 */
+	if ((mpam_partid_max <= 2) && (mpam_pmg_max == 0))
 		return false;
 
 	/*
@@ -806,6 +842,30 @@ static int mpam_resctrl_resource_init(struct mpam_resctrl_res *res)
 	return 0;
 }
 
+/*
+ * Tasks are in PARTID-0 by default, which is reserved for use by the kernel
+ * and any unknown hardware. Move all user-space tasks to use PARTID-1, which
+ * is mapped to CLOSID-0.
+ * This is not serialised with processes forking(), meaning it is possible a
+ * process escapes being moved, but this happens once during boot, and is not
+ * expected to run concurrently with user-space tasks. Platforms with private-MSCs
+ * that are only accessible from CPUs that are brought online late may see some
+ * strange behaviour due to this race.
+ */
+static void mpam_resctrl_move_all_users_tasks(void)
+{
+	u64 regval;
+	struct task_struct *p, *t;
+
+	for_each_process_thread(p, t) {
+		regval = mpam_get_regval(t);
+
+		if (!regval && !(t->flags & PF_KTHREAD))
+			mpam_set_task_partid_pmg(t, 1, 1, 0, 0);
+
+	}
+}
+
 int mpam_resctrl_setup(void)
 {
 	int err = 0;
@@ -855,6 +915,9 @@ int mpam_resctrl_setup(void)
 			WRITE_ONCE(resctrl_enabled, true);
 	}
 
+	if (!err)
+		mpam_resctrl_move_all_users_tasks();
+
 	return err;
 }
 
@@ -871,6 +934,7 @@ u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 			    u32 closid, enum resctrl_conf_type type)
 {
 	u32 partid;
+	u32 cdp_closid;
 	struct mpam_config *cfg;
 	struct mpam_props *cprops;
 	struct mpam_resctrl_res *res;
@@ -886,7 +950,8 @@ u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
 	cprops = &res->class->props;
 
-	partid = resctrl_get_config_index(closid, type);
+	cdp_closid = resctrl_get_config_index(closid, type);
+	partid = closid_to_partid(cdp_closid);
 	cfg = &dom->comp->cfg[partid];
 
 	switch (r->rid) {
@@ -907,7 +972,7 @@ u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 		return -EINVAL;
 	}
 
-	if (!r->alloc_capable || partid >= resctrl_arch_get_num_closid(r) ||
+	if (!r->alloc_capable || cdp_closid >= resctrl_arch_get_num_closid(r) ||
 	    !mpam_has_feature(configured_by, cfg))
 		return r->default_ctrl;
 
@@ -930,6 +995,7 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_domain *d,
 {
 	int err;
 	u32 partid;
+	u32 cdp_closid;
 	struct mpam_config cfg;
 	struct mpam_props *cprops;
 	struct mpam_resctrl_res *res;
@@ -944,8 +1010,9 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_domain *d,
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
 	cprops = &res->class->props;
 
-	partid = resctrl_get_config_index(closid, t);
-	if (!r->alloc_capable || partid >= resctrl_arch_get_num_closid(r))
+	cdp_closid = resctrl_get_config_index(closid, t);
+	partid = closid_to_partid(cdp_closid);
+	if (!r->alloc_capable || cdp_closid >= resctrl_arch_get_num_closid(r))
 		return -EINVAL;
 
 	switch (r->rid) {
@@ -975,12 +1042,14 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_domain *d,
 	 * apply the same configuration to the other partid.
 	 */
 	if (mpam_resctrl_hide_cdp(r->rid)) {
-		partid = resctrl_get_config_index(closid, CDP_CODE);
+		cdp_closid = resctrl_get_config_index(closid, CDP_CODE);
+		partid = closid_to_partid(cdp_closid);
 		err = mpam_apply_config(dom->comp, partid, &cfg);
 		if (err)
 			return err;
 
-		partid = resctrl_get_config_index(closid, CDP_DATA);
+		cdp_closid = resctrl_get_config_index(closid, CDP_DATA);
+		partid = closid_to_partid(cdp_closid);
 		return mpam_apply_config(dom->comp, partid, &cfg);
 
 	} else {
