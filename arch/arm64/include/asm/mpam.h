@@ -143,6 +143,26 @@ static inline void resctrl_arch_set_rmid(struct task_struct *tsk, u32 rmid)
 #endif
 }
 
+static inline void mpam_save_kernel_partition(u64 *partid)
+{
+	if (!IS_ENABLED(CONFIG_ARM64_MPAM) ||
+	    !static_branch_likely(&mpam_enabled))
+		return;
+
+	*partid = read_sysreg_s(SYS_MPAM1_EL1);
+	write_sysreg_s(0, SYS_MPAM1_EL1);
+	isb();
+}
+
+static inline void mpam_restore_kernel_partition_nosync(u64 partid)
+{
+	if (!IS_ENABLED(CONFIG_ARM64_MPAM) ||
+	    !static_branch_likely(&mpam_enabled))
+		return;
+
+	write_sysreg_s(partid, SYS_MPAM1_EL1);
+}
+
 static inline void mpam_thread_switch(struct task_struct *tsk)
 {
 	u64 oldregval;
@@ -160,8 +180,9 @@ static inline void mpam_thread_switch(struct task_struct *tsk)
 	if (oldregval == regval)
 		return;
 
-	/* Synchronising this write is left until the ERET to EL0 */
+	write_sysreg_s(regval, SYS_MPAM1_EL1);
 	write_sysreg_s(regval, SYS_MPAM0_EL1);
+	isb();
 	WRITE_ONCE(per_cpu(arm64_mpam_current, cpu), regval);
 }
 #endif /* __ASM__MPAM_H */

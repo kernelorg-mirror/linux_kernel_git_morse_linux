@@ -21,6 +21,7 @@
 #include <asm/irq_regs.h>
 #include <asm/kprobes.h>
 #include <asm/mmu.h>
+#include <asm/mpam.h>
 #include <asm/processor.h>
 #include <asm/sdei.h>
 #include <asm/stacktrace.h>
@@ -268,12 +269,22 @@ static void __sched arm64_preempt_schedule_irq(void)
 static void do_interrupt_handler(struct pt_regs *regs,
 				 void (*handler)(struct pt_regs *))
 {
+	u64 kernel_mpam_partition;
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
-	if (on_thread_stack())
+	if (on_thread_stack()) {
+		/*
+		 * Switch away from the task partition and use the reserved
+		 * unthrottled partition for handling interrupts.
+		 */
+		mpam_save_kernel_partition(&kernel_mpam_partition);
+
 		call_on_irq_stack(regs, handler);
-	else
+
+		mpam_restore_kernel_partition_nosync(kernel_mpam_partition);
+	} else {
 		handler(regs);
+	}
 
 	set_irq_regs(old_regs);
 }
