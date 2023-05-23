@@ -295,6 +295,8 @@ int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
 	u32 mon = *(u32 *)arch_mon_ctx;
 	enum mpam_device_features type;
 
+	resctrl_arch_rmid_read_context_check();
+
 	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
 
 	switch (eventid) {
