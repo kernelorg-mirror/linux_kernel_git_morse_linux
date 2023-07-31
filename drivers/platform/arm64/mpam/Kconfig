@@ -7,6 +7,7 @@ config ARM64_MPAM_RESCTRL_FS
 	bool
 	default y if ARM64_MPAM_DRIVER && RESCTRL_FS
 	select RESCTRL_RMID_DEPENDS_ON_CLOSID
+	select RESCTRL_IOMMU if ARM_SMMU_V3
 
 menu "ARM64 MPAM driver options"
 
