@@ -9,6 +9,8 @@
 #include <linux/resctrl_types.h>
 #include <linux/types.h>
 
+#include <asm/mpam.h>
+
 #define GLOBAL_AFFINITY		~0
 
 struct mpam_msc;
