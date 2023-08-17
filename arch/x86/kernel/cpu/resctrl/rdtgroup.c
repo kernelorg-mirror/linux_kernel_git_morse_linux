@@ -3867,6 +3867,11 @@ cleanup_root:
 
 void __exit rdtgroup_exit(void)
 {
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+
+	if (r->mon_capable)
+		resctrl_exit_mon_l3_config(r);
+
 	debugfs_remove_recursive(debugfs_resctrl);
 	unregister_filesystem(&rdt_fs_type);
 	sysfs_remove_mount_point(fs_kobj, "resctrl");
