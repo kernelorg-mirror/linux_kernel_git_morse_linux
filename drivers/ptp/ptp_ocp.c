@@ -26,7 +26,6 @@
 #endif
 
 static struct class timecard_class = {
-	.owner		= THIS_MODULE,
 	.name		= "timecard",
 };
 
