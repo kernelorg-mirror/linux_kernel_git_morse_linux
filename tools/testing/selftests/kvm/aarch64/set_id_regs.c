@@ -374,6 +374,13 @@ static void test_reg_set_fail(struct kvm_vcpu *vcpu, uint64_t reg,
 	TEST_ASSERT_EQ(val, old_val);
 }
 
+static int sys_reg_to_idx(uint32_t reg_id)
+{
+	return KVM_ARM_FEATURE_ID_RANGE_IDX(sys_reg_Op0(reg_id), sys_reg_Op1(reg_id),
+					    sys_reg_CRn(reg_id), sys_reg_CRm(reg_id),
+					    sys_reg_Op2(reg_id));
+}
+
 static void test_user_set_reg(struct kvm_vcpu *vcpu, bool aarch64_only)
 {
 	uint64_t masks[KVM_ARM_FEATURE_ID_RANGE_SIZE];
@@ -398,9 +405,7 @@ static void test_user_set_reg(struct kvm_vcpu *vcpu, bool aarch64_only)
 		int idx;
 
 		/* Get the index to masks array for the idreg */
-		idx = KVM_ARM_FEATURE_ID_RANGE_IDX(sys_reg_Op0(reg_id), sys_reg_Op1(reg_id),
-						   sys_reg_CRn(reg_id), sys_reg_CRm(reg_id),
-						   sys_reg_Op2(reg_id));
+		idx = sys_reg_to_idx(reg_id);
 
 		for (int j = 0;  ftr_bits[j].type != FTR_END; j++) {
 			/* Skip aarch32 reg on aarch64 only system, since they are RAZ/WI. */
