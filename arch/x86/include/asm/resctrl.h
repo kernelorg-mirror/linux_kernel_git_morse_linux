@@ -201,9 +201,10 @@ static inline void *resctrl_arch_mon_ctx_alloc(struct rdt_resource *r,
 	return NULL;
 };
 
-static inline void resctrl_arch_mon_ctx_free(struct rdt_resource *r,
-					     enum resctrl_event_id evtid,
-					     void *ctx) { };
+static inline bool resctrl_arch_mon_can_overflow(void)
+{
+	return true;
+}
 
 void resctrl_cpu_detect(struct cpuinfo_x86 *c);
 
