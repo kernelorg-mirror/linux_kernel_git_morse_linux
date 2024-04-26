@@ -2737,6 +2737,18 @@ void __init resctrl_file_fflags_init(const char *config,
 		rft->fflags = fflags;
 }
 
+static void __init thread_throttle_mode_init(void)
+{
+	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_MBA);
+
+	if (!r->alloc_capable ||
+	    r->membw.throttle_mode == THREAD_THROTTLE_UNDEFINED)
+		return;
+
+	resctrl_file_fflags_init("thread_throttle_mode",
+				 RFTYPE_CTRL_INFO | RFTYPE_RES_MB);
+}
+
 /**
  * rdtgroup_kn_mode_restrict - Restrict user access to named resctrl file
  * @r: The resource group with which the file is associated.
@@ -5088,6 +5100,8 @@ int __init resctrl_init(void)
 		     sizeof(last_cmd_status_buf));
 
 	rdtgroup_setup_default();
+
+	thread_throttle_mode_init();
 
 	ret = resctrl_mon_resource_init();
 	if (ret)
