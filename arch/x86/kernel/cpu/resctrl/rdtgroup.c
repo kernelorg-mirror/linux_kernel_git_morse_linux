@@ -2727,8 +2727,7 @@ static struct rftype *rdtgroup_get_rftype_by_name(const char *name)
 	return NULL;
 }
 
-void __init resctrl_file_fflags_init(const char *config,
-				     unsigned long fflags)
+void resctrl_file_fflags_init(const char *config, unsigned long fflags)
 {
 	struct rftype *rft;
 
@@ -2737,7 +2736,7 @@ void __init resctrl_file_fflags_init(const char *config,
 		rft->fflags = fflags;
 }
 
-static void __init thread_throttle_mode_init(void)
+static void thread_throttle_mode_init(void)
 {
 	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_MBA);
 
@@ -4863,7 +4862,7 @@ static void rdtgroup_destroy_root(void)
 	rdtgroup_default.kn = NULL;
 }
 
-static void __init rdtgroup_setup_default(void)
+static void rdtgroup_setup_default(void)
 {
 	mutex_lock(&rdtgroup_mutex);
 
@@ -5092,7 +5091,7 @@ out_unlock:
  *
  * Return: 0 on success or -errno
  */
-int __init resctrl_init(void)
+int resctrl_init(void)
 {
 	int ret = 0;
 
@@ -5149,7 +5148,7 @@ cleanup_mountpoint:
 	return ret;
 }
 
-void __exit resctrl_exit(void)
+void resctrl_exit(void)
 {
 	rdtgroup_destroy_root();
 	debugfs_remove_recursive(debugfs_resctrl);
