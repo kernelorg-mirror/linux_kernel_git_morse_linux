@@ -140,6 +140,8 @@ struct resctrl_membw {
  * @format_str:		Per resource format string to show domain value
  * @evt_list:		List of monitoring events
  * @fflags:		flags to choose base and info files
+ * @mbm_cfg_mask:	Bandwidth sources that can be tracked when Bandwidth
+ *			Monitoring Event Configuration (BMEC) is supported.
  * @cdp_capable:	Is the CDP feature available on this resource
  */
 struct rdt_resource {
@@ -157,6 +159,7 @@ struct rdt_resource {
 	const char		*format_str;
 	struct list_head	evt_list;
 	unsigned long		fflags;
+	unsigned int		mbm_cfg_mask;
 	bool			cdp_capable;
 };
 
