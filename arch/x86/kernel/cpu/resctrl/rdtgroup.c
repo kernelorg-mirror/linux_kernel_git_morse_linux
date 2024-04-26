@@ -2072,12 +2072,6 @@ out:
 	return ret;
 }
 
-struct mon_config_info {
-	struct rdt_mon_domain *d;
-	u32 evtid;
-	u32 mon_config;
-};
-
 u32 resctrl_arch_event_config_get(struct rdt_mon_domain *d,
 				  enum resctrl_event_id eventid)
 {
@@ -2100,7 +2094,7 @@ u32 resctrl_arch_event_config_get(struct rdt_mon_domain *d,
 
 void resctrl_arch_event_config_set(void *info)
 {
-	struct mon_config_info *mon_info = info;
+	struct resctrl_mon_config_info *mon_info = info;
 	struct rdt_hw_mon_domain *hw_dom;
 	unsigned int index;
 
@@ -2194,11 +2188,10 @@ static int mbm_local_bytes_config_show(struct kernfs_open_file *of,
 	return 0;
 }
 
-
 static void mbm_config_write_domain(struct rdt_resource *r,
 				    struct rdt_mon_domain *d, u32 evtid, u32 val)
 {
-	struct mon_config_info mon_info = {0};
+	struct resctrl_mon_config_info mon_info = {0};
 	u32 config_val;
 
 	/*
@@ -2209,6 +2202,7 @@ static void mbm_config_write_domain(struct rdt_resource *r,
 	if (config_val == INVALID_CONFIG_VALUE || config_val == val)
 		return;
 
+	mon_info.r = r;
 	mon_info.d = d;
 	mon_info.evtid = evtid;
 	mon_info.mon_config = val;
