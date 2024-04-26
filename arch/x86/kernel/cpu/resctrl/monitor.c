@@ -1387,8 +1387,8 @@ u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
 	return INVALID_CONFIG_VALUE;
 }
 
-static void resctrl_arch_mon_event_config_set(struct rdt_mon_domain *d,
-					      enum resctrl_event_id eventid, u32 val)
+void resctrl_arch_mon_event_config_set(struct rdt_mon_domain *d,
+				       enum resctrl_event_id eventid, u32 val)
 {
 	struct rdt_hw_mon_domain *hw_dom;
 	unsigned int index;
@@ -1640,8 +1640,8 @@ void mbm_cntr_reset(struct rdt_resource *r)
  * This is run on a CPU belonging to domain @d so call
  * resctrl_abmc_config_one_amd() directly.
  */
-static void resctrl_arch_update_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
-				     enum resctrl_event_id evtid, u32 val)
+void resctrl_arch_update_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+			      enum resctrl_event_id evtid, u32 val)
 {
 	union l3_qos_abmc_cfg abmc_cfg = { 0 };
 	u32 cntr_id, rmid;

@@ -16,8 +16,6 @@
 #define CQM_LIMBOCHECK_INTERVAL	1000
 
 #define MBM_CNTR_WIDTH_BASE		24
-#define MBM_OVERFLOW_INTERVAL		1000
-#define MAX_MBA_BW			100u
 #define MBA_IS_LINEAR			0x4
 #define MBM_CNTR_WIDTH_OFFSET_AMD	20
 
@@ -424,13 +422,6 @@ extern struct rdtgroup rdtgroup_default;
 extern struct dentry *debugfs_resctrl;
 extern enum resctrl_event_id mba_mbps_default_event;
 
-static inline bool resctrl_arch_get_cdp_enabled(enum resctrl_res_level l)
-{
-	return rdt_resources_all[l].cdp_enabled;
-}
-
-int resctrl_arch_set_cdp_enabled(enum resctrl_res_level l, bool enable);
-
 void arch_mon_domain_online(struct rdt_resource *r, struct rdt_mon_domain *d);
 
 /* CPUID.(EAX=10H, ECX=ResID=1).EAX */
@@ -569,16 +560,9 @@ void resctrl_file_fflags_init(const char *config, unsigned long fflags);
 void rdt_staged_configs_clear(void);
 bool closid_allocated(unsigned int closid);
 int resctrl_find_cleanest_closid(void);
-int resctrl_arch_mbm_cntr_assign_set(struct rdt_resource *r, bool enable);
-bool resctrl_arch_mbm_cntr_assign_enabled(struct rdt_resource *r);
 void arch_mbm_evt_config_init_one(struct rdt_hw_mon_domain *hw_dom,
 				  enum resctrl_event_id evt);
 unsigned int mon_event_config_index_get(u32 evtid);
-u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
-				      enum resctrl_event_id eventid);
-int resctrl_arch_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
-			     enum resctrl_event_id evtid, u32 rmid, u32 closid,
-			     u32 cntr_id, bool assign);
 void resctrl_mon_event_config_set(void *info);
 int resctrl_assign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
 			      struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
@@ -587,7 +571,6 @@ int resctrl_unassign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d
 void mbm_cntr_reset(struct rdt_resource *r);
 int mbm_cntr_get(struct rdt_resource *r, struct rdt_mon_domain *d,
 		 struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
-void resctrl_arch_mbm_cntr_assign_set_one(struct rdt_resource *r);
 #ifdef CONFIG_RESCTRL_FS_PSEUDO_LOCK
 int rdtgroup_locksetup_enter(struct rdtgroup *rdtgrp);
 int rdtgroup_locksetup_exit(struct rdtgroup *rdtgrp);
