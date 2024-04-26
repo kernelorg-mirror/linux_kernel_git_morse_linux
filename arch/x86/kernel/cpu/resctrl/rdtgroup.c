@@ -1179,10 +1179,17 @@ static int rdt_thread_throttle_mode_show(struct kernfs_open_file *of,
 	struct resctrl_schema *s = of->kn->parent->priv;
 	struct rdt_resource *r = s->res;
 
-	if (r->membw.throttle_mode == THREAD_THROTTLE_PER_THREAD)
-		seq_puts(seq, "per-thread\n");
-	else
+	switch (r->membw.throttle_mode) {
+	case THREAD_THROTTLE_UNDEFINED:
+		seq_puts(seq, "undefined\n");
+		break;
+	case THREAD_THROTTLE_MAX:
 		seq_puts(seq, "max\n");
+		break;
+	case THREAD_THROTTLE_PER_THREAD:
+		seq_puts(seq, "per-thread\n");
+		break;
+	}
 
 	return 0;
 }
@@ -2048,9 +2055,24 @@ static struct rftype *rdtgroup_get_rftype_by_name(const char *name)
 	return NULL;
 }
 
-void __init thread_throttle_mode_init(void)
+static void __init thread_throttle_mode_init(void)
 {
+	enum membw_throttle_mode throttle_mode = THREAD_THROTTLE_UNDEFINED;
+	struct rdt_resource *r_mba, *r_smba;
 	struct rftype *rft;
+
+	r_mba = resctrl_arch_get_resource(RDT_RESOURCE_MBA);
+	if (r_mba->alloc_capable &&
+	    r_mba->membw.throttle_mode != THREAD_THROTTLE_UNDEFINED)
+		throttle_mode = r_mba->membw.throttle_mode;
+
+	r_smba = resctrl_arch_get_resource(RDT_RESOURCE_SMBA);
+	if (r_smba->alloc_capable &&
+	    r_smba->membw.throttle_mode != THREAD_THROTTLE_UNDEFINED)
+		throttle_mode = r_smba->membw.throttle_mode;
+
+	if (throttle_mode == THREAD_THROTTLE_UNDEFINED)
+		return;
 
 	rft = rdtgroup_get_rftype_by_name("thread_throttle_mode");
 	if (!rft)
@@ -4263,6 +4285,8 @@ int __init resctrl_init(void)
 		     sizeof(last_cmd_status_buf));
 
 	rdtgroup_setup_default();
+
+	thread_throttle_mode_init();
 
 	ret = resctrl_mon_resource_init();
 	if (ret)
