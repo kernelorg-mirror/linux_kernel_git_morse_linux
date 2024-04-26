@@ -574,7 +574,7 @@ int rdtgroup_mondata_show(struct seq_file *m, void *arg)
 	resid = md.u.rid;
 	domid = md.u.domid;
 	evtid = md.u.evtid;
-	r = &rdt_resources_all[resid].r_resctrl;
+	r = resctrl_arch_get_resource(resid);
 
 	if (resctrl_arch_get_abmc_enabled() && evtid != QOS_L3_OCCUP_EVENT_ID) {
 		index = mon_event_config_index_get(evtid);
