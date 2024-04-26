@@ -23,6 +23,9 @@
 #define INVALID_CONFIG_VALUE		U32_MAX
 #define INVALID_CONFIG_INDEX		UINT_MAX
 
+/* Max event bits supported */
+#define MAX_EVT_CONFIG_BITS		GENMASK(6, 0)
+
 /* Maximum assignable counters per resctrl group */
 #define MAX_CNTRS			2
 
