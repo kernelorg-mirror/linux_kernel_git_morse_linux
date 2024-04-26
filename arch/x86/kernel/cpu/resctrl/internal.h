@@ -35,23 +35,8 @@
 /* Max event bits supported */
 #define MAX_EVT_CONFIG_BITS		GENMASK(6, 0)
 
-#define INVALID_CONFIG_VALUE		U32_MAX
-#define INVALID_CONFIG_INDEX		UINT_MAX
-
 /* Setting bit 0 in L3_QOS_EXT_CFG enables the ABMC feature. */
 #define ABMC_ENABLE_BIT			0
-
-/* Maximum assignable counters per resctrl group */
-#define MAX_CNTRS			2
-
-#define MON_CNTR_UNSET			U32_MAX
-
-/*
- * Assignment flags for ABMC feature
- */
-#define ASSIGN_NONE			0
-#define ASSIGN_TOTAL			BIT(QOS_L3_MBM_TOTAL_EVENT_ID)
-#define ASSIGN_LOCAL			BIT(QOS_L3_MBM_LOCAL_EVENT_ID)
 
 /**
  * cpumask_any_housekeeping() - Choose any CPU in @mask, preferring those that
