@@ -1205,6 +1205,17 @@ int __init resctrl_mon_resource_init(void)
 
 	l3_mon_evt_init(r);
 
+	if (resctrl_arch_is_evt_configurable(QOS_L3_MBM_TOTAL_EVENT_ID)) {
+		mbm_total_event.configurable = true;
+		resctrl_file_fflags_init("mbm_total_bytes_config",
+					 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
+	}
+	if (resctrl_arch_is_evt_configurable(QOS_L3_MBM_LOCAL_EVENT_ID)) {
+		mbm_local_event.configurable = true;
+		resctrl_file_fflags_init("mbm_local_bytes_config",
+					 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
+	}
+
 	return 0;
 }
 
@@ -1248,18 +1259,6 @@ int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 		/* Detect list of bandwidth sources that can be tracked */
 		cpuid_count(0x80000020, 3, &eax, &ebx, &ecx, &edx);
 		hw_res->mbm_cfg_mask = ecx & MAX_EVT_CONFIG_BITS;
-
-		if (rdt_cpu_has(X86_FEATURE_CQM_MBM_TOTAL)) {
-			mbm_total_event.configurable = true;
-			resctrl_file_fflags_init("mbm_total_bytes_config",
-						 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
-		}
-		if (rdt_cpu_has(X86_FEATURE_CQM_MBM_LOCAL)) {
-			mbm_local_event.configurable = true;
-			resctrl_file_fflags_init("mbm_local_bytes_config",
-						 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
-		}
-
 		if (rdt_cpu_has(X86_FEATURE_ABMC)) {
 			r->mon.mbm_cntr_assignable = true;
 			cpuid_count(0x80000020, 5, &eax, &ebx, &ecx, &edx);
@@ -1285,7 +1284,7 @@ void arch_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom)
 	 * Read the configuration registers QOS_EVT_CFG_n, where <n> is
 	 * the BMEC event number (EvtID).
 	 */
-	if (mbm_total_event.configurable) {
+	if (resctrl_arch_is_evt_configurable(QOS_L3_MBM_TOTAL_EVENT_ID)) {
 		index = mon_event_config_index_get(QOS_L3_MBM_TOTAL_EVENT_ID);
 		rdmsrl(MSR_IA32_EVT_CFG_BASE + index, msrval);
 		hw_dom->mbm_total_cfg = msrval & MAX_EVT_CONFIG_BITS;
@@ -1293,7 +1292,7 @@ void arch_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom)
 		hw_dom->mbm_total_cfg = INVALID_CONFIG_VALUE;
 	}
 
-	if (mbm_local_event.configurable) {
+	if (resctrl_arch_is_evt_configurable(QOS_L3_MBM_LOCAL_EVENT_ID)) {
 		index = mon_event_config_index_get(QOS_L3_MBM_LOCAL_EVENT_ID);
 		rdmsrl(MSR_IA32_EVT_CFG_BASE + index, msrval);
 		hw_dom->mbm_local_cfg = msrval & MAX_EVT_CONFIG_BITS;
