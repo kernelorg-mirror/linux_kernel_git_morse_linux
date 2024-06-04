@@ -1314,7 +1314,6 @@ static ssize_t resctrl_mbm_assign_control_write(struct kernfs_open_file *of,
 }
 
 #ifdef CONFIG_PROC_CPU_RESCTRL
-
 /*
  * A task can only be part of one resctrl control group and of one monitor
  * group which is associated to that control group.
