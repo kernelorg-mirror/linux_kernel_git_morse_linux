@@ -237,7 +237,7 @@ struct resctrl_mon {
  * @default_ctrl:	Specifies default cache cbm or memory B/W percent.
  * @format_str:		Per resource format string to show domain value
  * @parse_ctrlval:	Per resource function pointer to parse control values
- * @fflags:		flags to choose base and info files
+ * @evt_list:		List of monitoring events
  * @cdp_capable:	Is the CDP feature available on this resource
  */
 struct rdt_resource {
@@ -258,7 +258,7 @@ struct rdt_resource {
 	int			(*parse_ctrlval)(struct rdt_parse_data *data,
 						 struct resctrl_schema *s,
 						 struct rdt_ctrl_domain *d);
-	unsigned long		fflags;
+	struct list_head	evt_list;
 	bool			cdp_capable;
 };
 
