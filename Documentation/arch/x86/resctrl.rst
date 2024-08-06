@@ -291,6 +291,9 @@ with the following files:
 		as long as there are enough RMID counters available to support number
 		of monitoring groups.
 
+"num_mbm_cntrs":
+	The number of monitoring counters available for assignment.
+
 "max_threshold_occupancy":
 		Read/write file provides the largest value (in
 		bytes) at which a previously used LLC_occupancy
