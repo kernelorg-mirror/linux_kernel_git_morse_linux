@@ -185,6 +185,37 @@ bool closid_allocated(unsigned int closid)
 	return !test_bit(closid, &closid_free_map);
 }
 
+/*
+ * Counter bitmap for tracking the available counters.
+ * ABMC feature provides set of hardware counters for enabling events.
+ * Each event takes one hardware counter. Kernel needs to keep track
+ * of number of available counters.
+ */
+static DECLARE_BITMAP(mbm_cntrs_free_map, 64);
+
+static void mbm_cntrs_init(struct rdt_resource *r)
+{
+	bitmap_fill(mbm_cntrs_free_map, r->mon.num_mbm_cntrs);
+}
+
+int mbm_cntr_alloc(struct rdt_resource *r)
+{
+	int cntr_id;
+
+	cntr_id = find_first_bit(mbm_cntrs_free_map, r->mon.num_mbm_cntrs);
+	if (cntr_id >= r->mon.num_mbm_cntrs)
+		return -ENOSPC;
+
+	__clear_bit(cntr_id, mbm_cntrs_free_map);
+
+	return cntr_id;
+}
+
+void mbm_cntr_free(u32 cntr_id)
+{
+	__set_bit(cntr_id, mbm_cntrs_free_map);
+}
+
 /**
  * rdtgroup_mode_by_closid - Return mode of resource group with closid
  * @closid: closid if the resource group
@@ -2747,6 +2778,8 @@ static int rdt_get_tree(struct fs_context *fc)
 	}
 
 	closid_init();
+
+	mbm_cntrs_init(&rdt_resources_all[RDT_RESOURCE_L3].r_resctrl);
 
 	if (resctrl_arch_mon_capable())
 		flags |= RFTYPE_MON;
