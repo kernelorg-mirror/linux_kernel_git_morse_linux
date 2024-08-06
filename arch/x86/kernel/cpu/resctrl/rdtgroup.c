@@ -2908,6 +2908,46 @@ static void schemata_list_destroy(void)
 	}
 }
 
+/*
+ * Called when new group is created. Assign the counters if ABMC is
+ * already enabled. Two counters are required per group, one for total
+ * event and one for local event. With limited number of counters,
+ * the assignments can fail in some cases. But, it is not required to
+ * fail the group creation. Users have the option to modify the
+ * assignments after the group creation.
+ */
+static int rdtgroup_assign_cntrs(struct rdtgroup *rdtgrp)
+{
+	int ret = 0;
+
+	if (!resctrl_arch_get_abmc_enabled())
+		return 0;
+
+	if (is_mbm_total_enabled())
+		ret = rdtgroup_assign_cntr(rdtgrp, QOS_L3_MBM_TOTAL_EVENT_ID);
+
+	if (!ret && is_mbm_local_enabled())
+		ret = rdtgroup_assign_cntr(rdtgrp, QOS_L3_MBM_LOCAL_EVENT_ID);
+
+	return ret;
+}
+
+static int rdtgroup_unassign_cntrs(struct rdtgroup *rdtgrp)
+{
+	int ret = 0;
+
+	if (!resctrl_arch_get_abmc_enabled())
+		return 0;
+
+	if (is_mbm_total_enabled())
+		ret = rdtgroup_unassign_cntr(rdtgrp, QOS_L3_MBM_TOTAL_EVENT_ID);
+
+	if (!ret && is_mbm_local_enabled())
+		ret = rdtgroup_unassign_cntr(rdtgrp, QOS_L3_MBM_LOCAL_EVENT_ID);
+
+	return ret;
+}
+
 static int rdt_get_tree(struct fs_context *fc)
 {
 	struct rdt_fs_context *ctx = rdt_fc2context(fc);
@@ -2969,6 +3009,8 @@ static int rdt_get_tree(struct fs_context *fc)
 		if (ret < 0)
 			goto out_mongrp;
 		rdtgroup_default.mon.mon_data_kn = kn_mondata;
+
+		rdtgroup_assign_cntrs(&rdtgroup_default);
 	}
 
 	ret = rdt_pseudo_lock_init();
@@ -2999,6 +3041,7 @@ static int rdt_get_tree(struct fs_context *fc)
 out_psl:
 	rdt_pseudo_lock_release();
 out_mondata:
+	rdtgroup_unassign_cntrs(&rdtgroup_default);
 	if (resctrl_arch_mon_capable())
 		kernfs_remove(kn_mondata);
 out_mongrp:
@@ -3258,6 +3301,8 @@ static void rdt_kill_sb(struct super_block *sb)
 		resctrl_arch_disable_alloc();
 	if (resctrl_arch_mon_capable())
 		resctrl_arch_disable_mon();
+
+	rdtgroup_unassign_cntrs(&rdtgroup_default);
 	resctrl_mounted = false;
 	kernfs_kill_sb(sb);
 	mutex_unlock(&rdtgroup_mutex);
@@ -3849,6 +3894,8 @@ static int rdtgroup_mkdir_mon(struct kernfs_node *parent_kn,
 		goto out_unlock;
 	}
 
+	rdtgroup_assign_cntrs(rdtgrp);
+
 	kernfs_activate(rdtgrp->kn);
 
 	/*
@@ -3893,6 +3940,8 @@ static int rdtgroup_mkdir_ctrl_mon(struct kernfs_node *parent_kn,
 	if (ret)
 		goto out_closid_free;
 
+	rdtgroup_assign_cntrs(rdtgrp);
+
 	kernfs_activate(rdtgrp->kn);
 
 	ret = rdtgroup_init_alloc(rdtgrp);
@@ -3918,6 +3967,7 @@ static int rdtgroup_mkdir_ctrl_mon(struct kernfs_node *parent_kn,
 out_del_list:
 	list_del(&rdtgrp->rdtgroup_list);
 out_rmid_free:
+	rdtgroup_unassign_cntrs(rdtgrp);
 	mkdir_rdt_prepare_rmid_free(rdtgrp);
 out_closid_free:
 	closid_free(closid);
@@ -3988,6 +4038,9 @@ static int rdtgroup_rmdir_mon(struct rdtgroup *rdtgrp, cpumask_var_t tmpmask)
 	update_closid_rmid(tmpmask, NULL);
 
 	rdtgrp->flags = RDT_DELETED;
+
+	rdtgroup_unassign_cntrs(rdtgrp);
+
 	free_rmid(rdtgrp->closid, rdtgrp->mon.rmid);
 
 	/*
@@ -4033,6 +4086,8 @@ static int rdtgroup_rmdir_ctrl(struct rdtgroup *rdtgrp, cpumask_var_t tmpmask)
 	 */
 	cpumask_or(tmpmask, tmpmask, &rdtgrp->cpu_mask);
 	update_closid_rmid(tmpmask, NULL);
+
+	rdtgroup_unassign_cntrs(rdtgrp);
 
 	free_rmid(rdtgrp->closid, rdtgrp->mon.rmid);
 	closid_free(rdtgrp->closid);
