@@ -294,6 +294,17 @@ with the following files:
 "num_mbm_cntrs":
 	The number of monitoring counters available for assignment.
 
+	Resctrl subsystem provides the interface to count maximum of two
+	MBM events per group, from a combination of total and local events.
+	Keeping the current interface, users can assign a maximum of two
+	monitoring counters per group. User will also have the option to
+	enable only one counter to the group.
+
+	With limited number of counters, system can run out of assignable counters.
+	In mbm_cntr_assign mode, the MBM event counters will return "Unassigned" if
+	the counter is not assigned to the event when read. Users need to assign a
+	counter manually to read the events.
+
 "max_threshold_occupancy":
 		Read/write file provides the largest value (in
 		bytes) at which a previously used LLC_occupancy
