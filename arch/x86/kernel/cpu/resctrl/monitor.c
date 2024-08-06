@@ -1244,6 +1244,7 @@ int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 				r->mon.num_mbm_cntrs = 64;
 
 			resctrl_file_fflags_init("num_mbm_cntrs", RFTYPE_MON_INFO);
+			resctrl_file_fflags_init("mbm_control", RFTYPE_MON_INFO);
 		}
 	}
 
