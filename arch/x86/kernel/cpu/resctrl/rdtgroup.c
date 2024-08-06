@@ -1961,6 +1961,58 @@ int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
 	return 0;
 }
 
+static int rdtgroup_mbm_cntr_test(struct rdt_resource *r, u32 cntr_id)
+{
+	struct rdt_mon_domain *d;
+
+	list_for_each_entry(d, &r->mon_domains, hdr.list)
+		if (test_bit(cntr_id, d->mbm_cntr_map))
+			return 1;
+
+	return 0;
+}
+
+/* Free the counter id after the event is unassigned */
+void rdtgroup_free_cntr(struct rdt_resource *r, struct rdtgroup *rdtgrp,
+			int index)
+{
+	/* Update the counter bitmap */
+	if (!rdtgroup_mbm_cntr_test(r, rdtgrp->mon.cntr_id[index])) {
+		mbm_cntr_free(rdtgrp->mon.cntr_id[index]);
+		rdtgrp->mon.cntr_id[index] = MON_CNTR_UNSET;
+	}
+}
+
+/*
+ * Unassign a hardware counter from the group and update all the domains
+ * in the group.
+ */
+int rdtgroup_unassign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+	struct rdt_mon_domain *d;
+	int index;
+
+	index = mon_event_config_index_get(evtid);
+	if (index == INVALID_CONFIG_INDEX)
+		return -EINVAL;
+
+	if (rdtgrp->mon.cntr_id[index] != MON_CNTR_UNSET) {
+		list_for_each_entry(d, &r->mon_domains, hdr.list) {
+			resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+						 rdtgrp->mon.cntr_id[index],
+						 rdtgrp->closid, false);
+			clear_bit(rdtgrp->mon.cntr_id[index],
+				  d->mbm_cntr_map);
+		}
+
+		/* Free the counter at group level */
+		rdtgroup_free_cntr(r, rdtgrp, index);
+	}
+
+	return 0;
+}
+
 /* rdtgroup information files for one cache resource. */
 static struct rftype res_common_files[] = {
 	{
