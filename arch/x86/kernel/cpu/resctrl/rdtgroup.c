@@ -2756,6 +2756,23 @@ void resctrl_arch_mbm_cntr_assign_disable(void)
 	}
 }
 
+void resctrl_arch_mbm_cntr_assign_configure(void)
+{
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
+	bool enable = true;
+
+	mutex_lock(&rdtgroup_mutex);
+
+	if (r->mon.mbm_cntr_assignable) {
+		if (!hw_res->mbm_cntr_assign_enabled)
+			hw_res->mbm_cntr_assign_enabled = true;
+		resctrl_abmc_set_one_amd(&enable);
+	}
+
+	mutex_unlock(&rdtgroup_mutex);
+}
+
 /*
  * We don't allow rdtgroup directories to be created anywhere
  * except the root directory. Thus when looking for the rdtgroup

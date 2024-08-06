@@ -599,6 +599,7 @@ static void domain_add_cpu_mon(int cpu, struct rdt_resource *r)
 		d = container_of(hdr, struct rdt_mon_domain, hdr);
 
 		cpumask_set_cpu(cpu, &d->hdr.cpu_mask);
+		resctrl_arch_mbm_cntr_assign_configure();
 		return;
 	}
 
@@ -620,6 +621,7 @@ static void domain_add_cpu_mon(int cpu, struct rdt_resource *r)
 	arch_mon_domain_online(r, d);
 
 	resctrl_mbm_evt_config_init(hw_dom);
+	resctrl_arch_mbm_cntr_assign_configure();
 
 	if (arch_domain_mbm_alloc(r->mon.num_rmid, hw_dom)) {
 		mon_domain_free(hw_dom);
