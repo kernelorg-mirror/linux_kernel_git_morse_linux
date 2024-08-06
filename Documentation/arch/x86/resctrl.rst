@@ -291,6 +291,21 @@ with the following files:
 		as long as there are enough RMID counters available to support number
 		of monitoring groups.
 
+	* To enable ABMC feature:
+	  ::
+
+	    # echo  "mbm_cntr_assign" > /sys/fs/resctrl/info/L3_MON/mbm_mode
+
+	* To enable the legacy monitoring feature:
+	  ::
+
+	    # echo  "legacy" > /sys/fs/resctrl/info/L3_MON/mbm_mode
+
+	The MBM event counters will reset when mbm_mode is changed. Moving to
+	mbm_cntr_assign will require users to assign the counters to the events to
+	read the events. Otherwise, the MBM event counters will return "Unassigned"
+	when read.
+
 "num_mbm_cntrs":
 	The number of monitoring counters available for assignment.
 
