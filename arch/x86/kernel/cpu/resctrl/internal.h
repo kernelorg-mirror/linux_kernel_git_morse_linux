@@ -685,6 +685,10 @@ int mbm_cntr_alloc(struct rdt_resource *r);
 void mbm_cntr_free(u32 cntr_id);
 void resctrl_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom);
 unsigned int mon_event_config_index_get(u32 evtid);
+int resctrl_arch_assign_cntr(struct rdt_mon_domain *d, enum resctrl_event_id evtid,
+			     u32 rmid, u32 cntr_id, u32 closid, bool assign);
+int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
+int rdtgroup_alloc_cntr(struct rdtgroup *rdtgrp, int index);
 void rdt_staged_configs_clear(void);
 bool closid_allocated(unsigned int closid);
 int resctrl_find_cleanest_closid(void);

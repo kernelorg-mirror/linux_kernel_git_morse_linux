@@ -1864,6 +1864,103 @@ static ssize_t mbm_local_bytes_config_write(struct kernfs_open_file *of,
 	return ret ?: nbytes;
 }
 
+static void rdtgroup_abmc_cfg(void *info)
+{
+	u64 *msrval = info;
+
+	wrmsrl(MSR_IA32_L3_QOS_ABMC_CFG, *msrval);
+}
+
+/*
+ * Send an IPI to the domain to assign the counter id to RMID.
+ */
+int resctrl_arch_assign_cntr(struct rdt_mon_domain *d, enum resctrl_event_id evtid,
+			     u32 rmid, u32 cntr_id, u32 closid, bool assign)
+{
+	struct rdt_hw_mon_domain *hw_dom = resctrl_to_arch_mon_dom(d);
+	union l3_qos_abmc_cfg abmc_cfg = { 0 };
+	struct arch_mbm_state *arch_mbm;
+
+	abmc_cfg.split.cfg_en = 1;
+	abmc_cfg.split.cntr_en = assign ? 1 : 0;
+	abmc_cfg.split.cntr_id = cntr_id;
+	abmc_cfg.split.bw_src = rmid;
+
+	/* Update the event configuration from the domain */
+	if (evtid == QOS_L3_MBM_TOTAL_EVENT_ID) {
+		abmc_cfg.split.bw_type = hw_dom->mbm_total_cfg;
+		arch_mbm = &hw_dom->arch_mbm_total[rmid];
+	} else {
+		abmc_cfg.split.bw_type = hw_dom->mbm_local_cfg;
+		arch_mbm = &hw_dom->arch_mbm_local[rmid];
+	}
+
+	smp_call_function_any(&d->hdr.cpu_mask, rdtgroup_abmc_cfg, &abmc_cfg, 1);
+
+	/*
+	 * Reset the architectural state so that reading of hardware
+	 * counter is not considered as an overflow in next update.
+	 */
+	if (arch_mbm)
+		memset(arch_mbm, 0, sizeof(struct arch_mbm_state));
+
+	return 0;
+}
+
+/* Allocate a new counter id if the event is unassigned */
+int rdtgroup_alloc_cntr(struct rdtgroup *rdtgrp, int index)
+{
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+	int cntr_id;
+
+	/* Nothing to do if event has been assigned already */
+	if (rdtgrp->mon.cntr_id[index] != MON_CNTR_UNSET) {
+		rdt_last_cmd_puts("ABMC counter is assigned already\n");
+		return 0;
+	}
+
+	/*
+	 * Allocate a new counter id and update domains
+	 */
+	cntr_id = mbm_cntr_alloc(r);
+	if (cntr_id < 0) {
+		rdt_last_cmd_puts("Out of ABMC counters\n");
+		return -ENOSPC;
+	}
+
+	rdtgrp->mon.cntr_id[index] = cntr_id;
+
+	return 0;
+}
+
+/*
+ * Assign a hardware counter to the group and assign the counter
+ * all the domains in the group. It will try to allocate the mbm
+ * counter if the counter is available.
+ */
+int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+	struct rdt_mon_domain *d;
+	int index;
+
+	index = mon_event_config_index_get(evtid);
+	if (index == INVALID_CONFIG_INDEX)
+		return -EINVAL;
+
+	if (rdtgroup_alloc_cntr(rdtgrp, index))
+		return -EINVAL;
+
+	list_for_each_entry(d, &r->mon_domains, hdr.list) {
+		resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+					 rdtgrp->mon.cntr_id[index],
+					 rdtgrp->closid, true);
+		set_bit(rdtgrp->mon.cntr_id[index], d->mbm_cntr_map);
+	}
+
+	return 0;
+}
+
 /* rdtgroup information files for one cache resource. */
 static struct rftype res_common_files[] = {
 	{
