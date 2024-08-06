@@ -845,6 +845,26 @@ static int rdtgroup_rmid_show(struct kernfs_open_file *of,
 	return ret;
 }
 
+static int rdtgroup_mbm_mode_show(struct kernfs_open_file *of,
+				  struct seq_file *s, void *v)
+{
+	struct rdt_resource *r = of->kn->parent->priv;
+
+	if (r->mon.mbm_cntr_assignable) {
+		if (resctrl_arch_get_abmc_enabled()) {
+			seq_puts(s, "[mbm_cntr_assign]\n");
+			seq_puts(s, "legacy\n");
+		} else {
+			seq_puts(s, "mbm_cntr_assign\n");
+			seq_puts(s, "[legacy]\n");
+		}
+	} else {
+		seq_puts(s, "[legacy]\n");
+	}
+
+	return 0;
+}
+
 #ifdef CONFIG_PROC_CPU_RESCTRL
 
 /*
@@ -1900,6 +1920,13 @@ static struct rftype res_common_files[] = {
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= mbm_local_bytes_config_show,
 		.write		= mbm_local_bytes_config_write,
+	},
+	{
+		.name		= "mbm_mode",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_mbm_mode_show,
+		.fflags		= RFTYPE_MON_INFO,
 	},
 	{
 		.name		= "cpus",

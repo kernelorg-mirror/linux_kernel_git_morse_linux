@@ -257,6 +257,40 @@ with the following files:
 	    # cat /sys/fs/resctrl/info/L3_MON/mbm_local_bytes_config
 	    0=0x30;1=0x30;3=0x15;4=0x15
 
+"mbm_mode":
+	Reports the list of assignable monitoring features supported. The
+	enclosed brackets indicate which feature is enabled.
+	::
+
+	  cat /sys/fs/resctrl/info/L3_MON/mbm_mode
+	  [mbm_cntr_assign]
+	  legacy
+
+	"mbm_cntr_assign":
+		AMD's ABMC feature is one of the mbm_cntr_assign mode supported.
+		The bandwidth monitoring feature on AMD system only guarantees
+		that RMIDs currently assigned to a processor will be tracked by
+		hardware. The counters of any other RMIDs which are no longer
+		being tracked will be reset to zero. The MBM event counters
+		return "Unavailable" for the RMIDs that are not tracked by
+		hardware. So, there can be only limited number of groups that can
+		give guaranteed monitoring numbers. With ever changing configurations
+		there is no way to definitely know which of these groups are being
+		tracked for certain point of time. Users do not have the option to
+		monitor a group or set of groups for certain period of time without
+		worrying about RMID being reset in between.
+
+		The ABMC feature provides an option to the user to assign a hardware
+		counter to an RMID and monitor the bandwidth as long as it is assigned.
+		The assigned RMID will be tracked by the hardware until the user
+		unassigns it manually. There is no need to worry about counters being
+		reset during this period.
+
+	"Legacy":
+		Legacy mode works without the assignment option. The monitoring works
+		as long as there are enough RMID counters available to support number
+		of monitoring groups.
+
 "max_threshold_occupancy":
 		Read/write file provides the largest value (in
 		bytes) at which a previously used LLC_occupancy
