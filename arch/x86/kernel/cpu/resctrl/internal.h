@@ -428,11 +428,6 @@ int resctrl_arch_set_cdp_enabled(enum resctrl_res_level l, bool enable);
 
 void arch_mon_domain_online(struct rdt_resource *r, struct rdt_mon_domain *d);
 
-static inline bool resctrl_arch_get_abmc_enabled(void)
-{
-	return rdt_resources_all[RDT_RESOURCE_L3].mbm_cntr_assign_enabled;
-}
-
 int resctrl_arch_mbm_cntr_assign_enable(void);
 void resctrl_arch_mbm_cntr_assign_disable(void);
 

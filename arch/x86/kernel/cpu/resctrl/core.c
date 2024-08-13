@@ -285,6 +285,11 @@ static void rdt_get_cdp_l2_config(void)
 	rdt_get_cdp_config(RDT_RESOURCE_L2);
 }
 
+bool resctrl_arch_get_abmc_enabled(void)
+{
+	return rdt_resources_all[RDT_RESOURCE_L3].mbm_cntr_assign_enabled;
+}
+
 static void mba_wrmsr_amd(struct msr_param *m)
 {
 	struct rdt_hw_ctrl_domain *hw_dom = resctrl_to_arch_ctrl_dom(m->dom);
