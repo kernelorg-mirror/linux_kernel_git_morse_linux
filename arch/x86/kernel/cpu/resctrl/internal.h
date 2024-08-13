@@ -428,9 +428,6 @@ int resctrl_arch_set_cdp_enabled(enum resctrl_res_level l, bool enable);
 
 void arch_mon_domain_online(struct rdt_resource *r, struct rdt_mon_domain *d);
 
-int resctrl_arch_mbm_cntr_assign_enable(void);
-void resctrl_arch_mbm_cntr_assign_disable(void);
-
 /* CPUID.(EAX=10H, ECX=ResID=1).EAX */
 union cpuid_0x10_1_eax {
 	struct {
@@ -542,9 +539,6 @@ int mbm_cntr_alloc(struct rdt_resource *r);
 void mbm_cntr_free(u32 cntr_id);
 void resctrl_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom);
 unsigned int mon_event_config_index_get(u32 evtid);
-void resctrl_arch_mbm_cntr_assign_configure(void);
-int resctrl_arch_assign_cntr(struct rdt_mon_domain *d, enum resctrl_event_id evtid,
-			     u32 rmid, u32 cntr_id, u32 closid, bool assign);
 int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
 int rdtgroup_alloc_cntr(struct rdtgroup *rdtgrp, int index);
 int rdtgroup_unassign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
