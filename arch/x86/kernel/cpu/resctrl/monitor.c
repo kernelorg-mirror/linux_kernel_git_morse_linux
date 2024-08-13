@@ -1220,6 +1220,11 @@ int resctrl_mon_resource_init(void)
 
 	}
 
+	if (r->mon.mbm_cntr_assignable) {
+		resctrl_file_fflags_init("num_mbm_cntrs", RFTYPE_MON_INFO);
+		resctrl_file_fflags_init("mbm_control", RFTYPE_MON_INFO);
+	}
+
 	return 0;
 }
 
@@ -1274,9 +1279,6 @@ int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 			r->mon.num_mbm_cntrs = (ebx & 0xFFFF) + 1;
 			if (WARN_ON(r->mon.num_mbm_cntrs > 64))
 				r->mon.num_mbm_cntrs = 64;
-
-			resctrl_file_fflags_init("num_mbm_cntrs", RFTYPE_MON_INFO);
-			resctrl_file_fflags_init("mbm_control", RFTYPE_MON_INFO);
 		}
 	}
 
