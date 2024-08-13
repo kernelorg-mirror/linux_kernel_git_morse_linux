@@ -38,6 +38,9 @@ DEFINE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 /* Mutex to protect rdtgroup access. */
 DEFINE_MUTEX(rdtgroup_mutex);
 
+/* Protects access to the ABMC hardware and associated structures. */
+static DEFINE_MUTEX(abmc_lock);
+
 static struct kernfs_root *rdt_root;
 struct rdtgroup rdtgroup_default;
 LIST_HEAD(rdt_all_groups);
@@ -3182,12 +3185,12 @@ int resctrl_arch_mbm_cntr_assign_enable(void)
 	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 
-	lockdep_assert_held(&rdtgroup_mutex);
-
+	mutex_lock(&abmc_lock);
 	if (r->mon.mbm_cntr_assignable && !hw_res->mbm_cntr_assign_enabled) {
 		_resctrl_abmc_enable(r, true);
 		hw_res->mbm_cntr_assign_enabled = true;
 	}
+	mutex_unlock(&abmc_lock);
 
 	return 0;
 }
@@ -3197,12 +3200,12 @@ void resctrl_arch_mbm_cntr_assign_disable(void)
 	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 
-	lockdep_assert_held(&rdtgroup_mutex);
-
+	mutex_lock(&abmc_lock);
 	if (hw_res->mbm_cntr_assign_enabled) {
 		_resctrl_abmc_enable(r, false);
 		hw_res->mbm_cntr_assign_enabled = false;
 	}
+	mutex_unlock(&abmc_lock);
 }
 
 void resctrl_arch_mbm_cntr_assign_configure(void)
@@ -3211,15 +3214,13 @@ void resctrl_arch_mbm_cntr_assign_configure(void)
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	bool enable = true;
 
-	mutex_lock(&rdtgroup_mutex);
-
+	mutex_lock(&abmc_lock);
 	if (r->mon.mbm_cntr_assignable) {
 		if (!hw_res->mbm_cntr_assign_enabled)
 			hw_res->mbm_cntr_assign_enabled = true;
 		resctrl_abmc_set_one_amd(&enable);
 	}
-
-	mutex_unlock(&rdtgroup_mutex);
+	mutex_unlock(&abmc_lock);
 }
 
 /*
