@@ -444,6 +444,28 @@ static inline u32 resctrl_get_config_index(u32 closid,
 	}
 }
 
+/**
+ * resctrl_mon_event_config_index_get - get the hardware index for the
+ *                                      configurable event
+ * @evtid: event id.
+ *
+ * Return: 0 for evtid == QOS_L3_MBM_TOTAL_EVENT_ID
+ *         1 for evtid == QOS_L3_MBM_LOCAL_EVENT_ID
+ *         INVALID_CONFIG_INDEX for invalid evtid
+ */
+static inline unsigned int resctrl_mon_event_config_index_get(u32 evtid)
+{
+	switch (evtid) {
+	case QOS_L3_MBM_TOTAL_EVENT_ID:
+		return 0;
+	case QOS_L3_MBM_LOCAL_EVENT_ID:
+		return 1;
+	default:
+		/* Should never reach here */
+		return INVALID_CONFIG_INDEX;
+	}
+}
+
 /*
  * Caller must hold the cpuhp read lock to prevent the struct rdt_domain being
  * freed.

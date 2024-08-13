@@ -1295,7 +1295,7 @@ void resctrl_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom)
 	 * the BMEC event number (EvtID).
 	 */
 	if (mbm_total_event.configurable) {
-		index = mon_event_config_index_get(QOS_L3_MBM_TOTAL_EVENT_ID);
+		index = resctrl_mon_event_config_index_get(QOS_L3_MBM_TOTAL_EVENT_ID);
 		rdmsrl(MSR_IA32_EVT_CFG_BASE + index, msrval);
 		hw_dom->mbm_total_cfg = msrval & MAX_EVT_CONFIG_BITS;
 	} else {
@@ -1303,7 +1303,7 @@ void resctrl_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom)
 	}
 
 	if (mbm_local_event.configurable) {
-		index = mon_event_config_index_get(QOS_L3_MBM_LOCAL_EVENT_ID);
+		index = resctrl_mon_event_config_index_get(QOS_L3_MBM_LOCAL_EVENT_ID);
 		rdmsrl(MSR_IA32_EVT_CFG_BASE + index, msrval);
 		hw_dom->mbm_local_cfg = msrval & MAX_EVT_CONFIG_BITS;
 	} else {

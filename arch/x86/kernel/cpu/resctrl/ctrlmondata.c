@@ -588,7 +588,7 @@ int rdtgroup_mondata_show(struct seq_file *m, void *arg)
 	r = resctrl_arch_get_resource(resid);
 
 	if (resctrl_arch_get_abmc_enabled() && evtid != QOS_L3_OCCUP_EVENT_ID) {
-		index = mon_event_config_index_get(evtid);
+		index = resctrl_mon_event_config_index_get(evtid);
 		if (index != INVALID_CONFIG_INDEX &&
 		    rdtgrp->mon.cntr_id[index] == MON_CNTR_UNSET) {
 			rr.err = -ENOENT;

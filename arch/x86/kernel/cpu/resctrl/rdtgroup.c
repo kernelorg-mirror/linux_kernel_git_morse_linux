@@ -1007,12 +1007,12 @@ static char *rdtgroup_mon_state_to_str(struct rdtgroup *rdtgrp,
 	 * Index 0 for evtid == QOS_L3_MBM_TOTAL_EVENT_ID
 	 * Index 1 for evtid == QOS_L3_MBM_LOCAL_EVENT_ID
 	 */
-	index = mon_event_config_index_get(QOS_L3_MBM_TOTAL_EVENT_ID);
+	index = resctrl_mon_event_config_index_get(QOS_L3_MBM_TOTAL_EVENT_ID);
 	if (rdtgrp->mon.cntr_id[index] != MON_CNTR_UNSET &&
 	    test_bit(rdtgrp->mon.cntr_id[index], d->mbm_cntr_map))
 		*tmp++ = 't';
 
-	index = mon_event_config_index_get(QOS_L3_MBM_LOCAL_EVENT_ID);
+	index = resctrl_mon_event_config_index_get(QOS_L3_MBM_LOCAL_EVENT_ID);
 	if (rdtgrp->mon.cntr_id[index] != MON_CNTR_UNSET &&
 	    test_bit(rdtgrp->mon.cntr_id[index], d->mbm_cntr_map))
 		*tmp++ = 'l';
@@ -1076,7 +1076,7 @@ static int rdtgroup_assign_update(struct rdtgroup *rdtgrp, enum resctrl_event_id
 {
 	int ret, index;
 
-	index = mon_event_config_index_get(evtid);
+	index = resctrl_mon_event_config_index_get(evtid);
 	if (index == INVALID_CONFIG_INDEX)
                 return -EINVAL;
 
@@ -1113,7 +1113,7 @@ static int rdtgroup_unassign_update(struct rdtgroup *rdtgrp, enum resctrl_event_
 	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_L3);
 	int ret = 0, index;
 
-	index = mon_event_config_index_get(evtid);
+	index = resctrl_mon_event_config_index_get(evtid);
 	if (index == INVALID_CONFIG_INDEX)
                 return -EINVAL;
 
@@ -2116,7 +2116,7 @@ void resctrl_arch_event_config_set(void *info)
 	struct rdt_hw_mon_domain *hw_dom;
 	unsigned int index;
 
-	index = mon_event_config_index_get(mon_info->evtid);
+	index = resctrl_mon_event_config_index_get(mon_info->evtid);
 	if (index == INVALID_CONFIG_INDEX)
 		return;
 
@@ -2133,28 +2133,6 @@ void resctrl_arch_event_config_set(void *info)
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
 		hw_dom->mbm_local_cfg =  mon_info->mon_config;
 		break;
-	}
-}
-
-/**
- * mon_event_config_index_get - get the hardware index for the
- *                              configurable event
- * @evtid: event id.
- *
- * Return: 0 for evtid == QOS_L3_MBM_TOTAL_EVENT_ID
- *         1 for evtid == QOS_L3_MBM_LOCAL_EVENT_ID
- *         INVALID_CONFIG_INDEX for invalid evtid
- */
-unsigned int mon_event_config_index_get(u32 evtid)
-{
-	switch (evtid) {
-	case QOS_L3_MBM_TOTAL_EVENT_ID:
-		return 0;
-	case QOS_L3_MBM_LOCAL_EVENT_ID:
-		return 1;
-	default:
-		/* Should never reach here */
-		return INVALID_CONFIG_INDEX;
 	}
 }
 
@@ -2423,7 +2401,7 @@ int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
 	struct rdt_mon_domain *d;
 	int index;
 
-	index = mon_event_config_index_get(evtid);
+	index = resctrl_mon_event_config_index_get(evtid);
 	if (index == INVALID_CONFIG_INDEX)
 		return -EINVAL;
 
@@ -2472,7 +2450,7 @@ int rdtgroup_unassign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
 	struct rdt_mon_domain *d;
 	int index;
 
-	index = mon_event_config_index_get(evtid);
+	index = resctrl_mon_event_config_index_get(evtid);
 	if (index == INVALID_CONFIG_INDEX)
 		return -EINVAL;
 
