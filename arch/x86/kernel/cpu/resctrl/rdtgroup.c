@@ -1028,12 +1028,11 @@ static int rdtgroup_mbm_control_show(struct kernfs_open_file *of,
 				     struct seq_file *s, void *v)
 {
 	struct rdt_resource *r = of->kn->parent->priv;
-	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 	struct rdt_mon_domain *dom;
 	struct rdtgroup *rdtg;
 	char str[10];
 
-	if (!hw_res->mbm_cntr_assign_enabled) {
+	if (resctrl_arch_mbm_cntr_assign_test(r) == false) {
 		rdt_last_cmd_puts("ABMC feature is not enabled\n");
 		return -EINVAL;
 	}
@@ -3156,6 +3155,19 @@ static void _resctrl_abmc_enable(struct rdt_resource *r, bool enable)
 				 resctrl_abmc_set_one_amd, &enable, 1);
 		resctrl_arch_reset_rmid_all(r, d);
 	}
+}
+
+bool resctrl_arch_mbm_cntr_assign_test(struct rdt_resource *r)
+{
+	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
+	bool ret = false;
+
+	mutex_lock(&abmc_lock);
+	if (r->mon.mbm_cntr_assignable)
+		ret = hw_res->mbm_cntr_assign_enabled;
+	mutex_unlock(&abmc_lock);
+
+	return ret;
 }
 
 int resctrl_arch_mbm_cntr_assign_enable(void)

@@ -601,6 +601,7 @@ void resctrl_arch_mbm_cntr_assign_disable(void);
 void resctrl_arch_mbm_cntr_assign_configure(void);
 int resctrl_arch_assign_cntr(struct rdt_mon_domain *d, enum resctrl_event_id evtid,
 			     u32 rmid, u32 cntr_id, u32 closid, bool assign);
+bool resctrl_arch_mbm_cntr_assign_test(struct rdt_resource *r);
 
 extern unsigned int resctrl_rmid_realloc_threshold;
 extern unsigned int resctrl_rmid_realloc_limit;
