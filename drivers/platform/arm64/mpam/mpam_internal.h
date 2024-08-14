@@ -19,7 +19,9 @@
 DECLARE_STATIC_KEY_FALSE(mpam_enabled);
 
 /* Value to indicate the allocated monitor is derived from the RMID index. */
-#define USE_RMID_IDX	(U16_MAX + 1)
+#define USE_RMID_IDX		(U16_MAX + 1)
+#define USE_ABMC_ASSIGNED	(U16_MAX + 2)
+#define ABMC_UNALLOCATED	(U16_MAX + 3)
 
 /*
  * Only these event configuration bits are supported. MPAM can't know if
@@ -366,11 +368,19 @@ struct mpam_resctrl_dom {
 
 	u32			mbm_total_evt_cfg;
 	u32			mbm_local_evt_cfg;
+
+	/*
+	 * If ABMC is supported, mapping from index to the hardware
+	 * monitor number.
+	 */
+	u32			*abmc_monitors;
 };
 
 struct mpam_resctrl_res {
 	struct mpam_class	*class;
 	struct rdt_resource	resctrl_res;
+
+	bool			assign_mode;
 };
 
 static inline int mpam_alloc_csu_mon(struct mpam_class *class)
