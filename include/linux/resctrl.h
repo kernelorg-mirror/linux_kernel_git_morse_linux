@@ -61,6 +61,13 @@ int proc_resctrl_show(struct seq_file *m,
  */
 #define RESCTRL_MAX_CBM			32
 
+
+/*
+ * Resctrl only expects 64 monitors...
+ */
+#define RESCTRL_MAX_CNTRS		64
+
+
 /* Walk all possible resources, with variants for only controls or monitors. */
 #define for_each_rdt_resource(_r)						\
 	for ((_r) = resctrl_arch_get_resource(0);				\

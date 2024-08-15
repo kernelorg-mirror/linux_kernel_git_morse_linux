@@ -211,10 +211,11 @@ bool closid_allocated(unsigned int closid)
  * Each event takes one hardware counter. Kernel needs to keep track
  * of number of available counters.
  */
-static DECLARE_BITMAP(mbm_cntrs_free_map, 64);
+static DECLARE_BITMAP(mbm_cntrs_free_map, RESCTRL_MAX_CNTRS);
 
 static void mbm_cntrs_init(struct rdt_resource *r)
 {
+	WARN_ON_ONCE(r->mon.num_mbm_cntrs > RESCTRL_MAX_CNTRS);
 	bitmap_fill(mbm_cntrs_free_map, r->mon.num_mbm_cntrs);
 }
 
