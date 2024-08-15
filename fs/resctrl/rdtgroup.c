@@ -1049,6 +1049,7 @@ static int rdtgroup_mbm_control_show(struct kernfs_open_file *of,
 static int rdtgroup_assign_update(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid,
 				  struct rdt_mon_domain *d)
 {
+	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_L3);
 	int ret, index;
 
 	index = resctrl_mon_event_config_index_get(evtid);
@@ -1065,7 +1066,7 @@ static int rdtgroup_assign_update(struct rdtgroup *rdtgrp, enum resctrl_event_id
 	if (d == NULL) {
 		ret = rdtgroup_assign_cntr(rdtgrp, evtid);
 	} else {
-		ret = resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+		ret = resctrl_arch_assign_cntr(r, d, evtid, rdtgrp->mon.rmid,
 					       rdtgrp->mon.cntr_id[index],
 					       rdtgrp->closid, 1);
 		if (!ret)
@@ -1098,7 +1099,7 @@ static int rdtgroup_unassign_update(struct rdtgroup *rdtgrp, enum resctrl_event_
 	if (d == NULL) {
 		ret = rdtgroup_unassign_cntr(rdtgrp, evtid);
 	} else {
-		ret = resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+		ret = resctrl_arch_assign_cntr(r, d, evtid, rdtgrp->mon.rmid,
 					       rdtgrp->mon.cntr_id[index],
 					       rdtgrp->closid, 0);
 		if (!ret) {
@@ -2295,7 +2296,7 @@ int rdtgroup_assign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
 		return -EINVAL;
 
 	list_for_each_entry(d, &r->mon_domains, hdr.list) {
-		resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+		resctrl_arch_assign_cntr(r, d, evtid, rdtgrp->mon.rmid,
 					 rdtgrp->mon.cntr_id[index],
 					 rdtgrp->closid, true);
 		set_bit(rdtgrp->mon.cntr_id[index], d->mbm_cntr_map);
@@ -2342,7 +2343,7 @@ int rdtgroup_unassign_cntr(struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
 
 	if (rdtgrp->mon.cntr_id[index] != MON_CNTR_UNSET) {
 		list_for_each_entry(d, &r->mon_domains, hdr.list) {
-			resctrl_arch_assign_cntr(d, evtid, rdtgrp->mon.rmid,
+			resctrl_arch_assign_cntr(r, d, evtid, rdtgrp->mon.rmid,
 						 rdtgrp->mon.cntr_id[index],
 						 rdtgrp->closid, false);
 			clear_bit(rdtgrp->mon.cntr_id[index],
