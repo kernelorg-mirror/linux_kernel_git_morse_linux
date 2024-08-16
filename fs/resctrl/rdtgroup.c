@@ -1008,12 +1008,13 @@ static int rdtgroup_mbm_control_show(struct kernfs_open_file *of,
 	struct rdtgroup *rdtg;
 	char str[10];
 
+	mutex_lock(&rdtgroup_mutex);
+
 	if (resctrl_arch_mbm_cntr_assign_test(r) == false) {
 		rdt_last_cmd_puts("ABMC feature is not enabled\n");
+		mutex_unlock(&rdtgroup_mutex);
 		return -EINVAL;
 	}
-
-	mutex_lock(&rdtgroup_mutex);
 
 	list_for_each_entry(rdtg, &rdt_all_groups, rdtgroup_list) {
 		struct rdtgroup *crg;
