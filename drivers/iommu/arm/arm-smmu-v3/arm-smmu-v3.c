@@ -3711,8 +3711,9 @@ static int arm_smmu_init_strtab_linear(struct arm_smmu_device *smmu)
 {
 	u32 size;
 	struct arm_smmu_strtab_cfg *cfg = &smmu->strtab_cfg;
+	unsigned int max_sid = arm_smmu_strtab_max_sid(smmu->sid_bits);
 
-	size = (1 << smmu->sid_bits) * sizeof(struct arm_smmu_ste);
+	size = max_sid * sizeof(struct arm_smmu_ste);
 	cfg->linear.table = dmam_alloc_coherent(smmu->dev, size,
 						&cfg->linear.ste_dma,
 						GFP_KERNEL);
