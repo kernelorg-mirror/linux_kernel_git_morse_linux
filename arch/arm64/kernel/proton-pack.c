@@ -1058,6 +1058,37 @@ static void kvm_setup_bhb_slot(const char *hyp_vecs_start)
 static void kvm_setup_bhb_slot(const char *hyp_vecs_start) { }
 #endif /* CONFIG_KVM */
 
+static void spectre_bhb_enable_fw_mitigation(void)
+{
+	kvm_setup_bhb_slot(__smccc_workaround_3_smc);
+	this_cpu_set_vectors(EL1_VECTOR_BHB_FW);
+
+	/*
+	 * The WA3 call in the vectors supersedes the WA1 call
+	 * made during context-switch. Uninstall any firmware
+	 * bp_hardening callback.
+	 */
+	install_bp_hardening_cb(NULL);
+}
+
+static void spectre_bhb_enable_loop_mitigation(void)
+{
+	switch (spectre_bhb_loop_affected(SCOPE_SYSTEM)) {
+	case 8:
+		kvm_setup_bhb_slot(__spectre_bhb_loop_k8);
+		break;
+	case 24:
+		kvm_setup_bhb_slot(__spectre_bhb_loop_k24);
+		break;
+	case 32:
+		kvm_setup_bhb_slot(__spectre_bhb_loop_k32);
+		break;
+	default:
+		WARN_ON_ONCE(1);
+	}
+	this_cpu_set_vectors(EL1_VECTOR_BHB_LOOP);
+}
+
 void spectre_bhb_enable_mitigation(const struct arm64_cpu_capabilities *entry)
 {
 	enum mitigation_state fw_state, state = SPECTRE_VULNERABLE;
@@ -1079,34 +1110,13 @@ void spectre_bhb_enable_mitigation(const struct arm64_cpu_capabilities *entry)
 
 		state = SPECTRE_MITIGATED;
 	} else if (spectre_bhb_loop_affected(SCOPE_LOCAL_CPU)) {
-		switch (spectre_bhb_loop_affected(SCOPE_SYSTEM)) {
-		case 8:
-			kvm_setup_bhb_slot(__spectre_bhb_loop_k8);
-			break;
-		case 24:
-			kvm_setup_bhb_slot(__spectre_bhb_loop_k24);
-			break;
-		case 32:
-			kvm_setup_bhb_slot(__spectre_bhb_loop_k32);
-			break;
-		default:
-			WARN_ON_ONCE(1);
-		}
-		this_cpu_set_vectors(EL1_VECTOR_BHB_LOOP);
+		spectre_bhb_enable_loop_mitigation();
 
 		state = SPECTRE_MITIGATED;
 	} else if (is_spectre_bhb_fw_affected(SCOPE_LOCAL_CPU)) {
 		fw_state = spectre_bhb_get_cpu_fw_mitigation_state();
 		if (fw_state == SPECTRE_MITIGATED) {
-			kvm_setup_bhb_slot(__smccc_workaround_3_smc);
-			this_cpu_set_vectors(EL1_VECTOR_BHB_FW);
-
-			/*
-			 * The WA3 call in the vectors supersedes the WA1 call
-			 * made during context-switch. Uninstall any firmware
-			 * bp_hardening callback.
-			 */
-			install_bp_hardening_cb(NULL);
+			spectre_bhb_enable_fw_mitigation();
 
 			state = SPECTRE_MITIGATED;
 		}
