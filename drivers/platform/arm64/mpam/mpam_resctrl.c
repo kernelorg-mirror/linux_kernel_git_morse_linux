@@ -652,14 +652,17 @@ static u32 mbw_pbm_to_percent(const unsigned long mbw_pbm, struct mpam_props *cp
 	return (num_bits * MAX_MBA_BW) / cprops->mbw_pbm_bits;
 }
 
-static u32 mbw_max_to_percent(u16 mbw_max, struct mpam_props *cprops)
+static u32 fract16_to_percent(u16 fract, u8 wd)
 {
 	u32 max_fract = 0xffff;
 
-	max_fract >>= 16 - cprops->bwa_wd;
-	mbw_max >>= 16 - cprops->bwa_wd;
+	if (WARN_ON_ONCE(wd > 16))
+		return 100;
 
-	return DIV_ROUND_CLOSEST((mbw_max * 100), max_fract);
+	max_fract >>= 16 - wd;
+	fract >>= 16 - wd;
+
+	return DIV_ROUND_CLOSEST((fract * 100), max_fract);
 }
 
 static u32 percent_to_mbw_pbm(u8 pc, struct mpam_props *cprops)
@@ -673,18 +676,47 @@ static u32 percent_to_mbw_pbm(u8 pc, struct mpam_props *cprops)
 	return (1 << num_bits) - 1;
 }
 
-static u16 percent_to_mbw_max(u8 pc, struct mpam_props *cprops)
+static u16 percent_to_fract16(u8 pc, u8 wd)
 {
 	u32 value;
 
-	if (WARN_ON_ONCE(cprops->bwa_wd > 16))
-		return 100;
-
-	value = ((pc << cprops->bwa_wd) + 50) / 100;
+	value = ((pc << wd) + 50) / 100;
 
 	if (value < 1)
 		return 0;
-	return (value - 1) << (16 - cprops->bwa_wd);
+	return (value - 1) << (16 - wd);
+}
+
+static u16 percent_to_cmax(u8 pc, struct mpam_props *cprops)
+{
+	u16 value;
+
+	if (!cprops->cmax_wd)
+		return 0;
+
+	value = percent_to_fract16(pc, cprops->cmax_wd);
+
+	/* Mask out unimplemented bits */
+	if (cprops->cmax_wd <= 16)
+		value &= GENMASK(15, 16 - cprops->cmax_wd);
+
+	return value;
+}
+
+static u16 percent_to_mbw_max(u8 pc, struct mpam_props *cprops)
+{
+	u16 value;
+
+	if (!cprops->bwa_wd)
+		return 0;
+
+	value = percent_to_fract16(pc, cprops->bwa_wd);
+
+	/* Mask out unimplemented bits */
+	if (cprops->bwa_wd <= 16)
+		value &= GENMASK(15, 16 - cprops->bwa_wd);
+
+	return value;
 }
 
 /* Find the L3 cache that has affinity with this CPU */
@@ -1193,7 +1225,7 @@ u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 		/* TODO: Scaling is not yet supported */
 		return mbw_pbm_to_percent(cfg->mbw_pbm, cprops);
 	case mpam_feat_mbw_max:
-		return mbw_max_to_percent(cfg->mbw_max, cprops);
+		return fract16_to_percent(cfg->mbw_max, cprops->bwa_wd);
 	default:
 		return -EINVAL;
 	}
