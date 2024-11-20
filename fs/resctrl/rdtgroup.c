@@ -1938,11 +1938,25 @@ static struct rftype res_common_files[] = {
 		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_RES_CACHE,
 	},
 	{
+		.name		= "bitmap_mask",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_default_ctrl_show,
+		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_SCHEMA_BITMAP,
+	},
+	{
 		.name		= "min_cbm_bits",
 		.mode		= 0444,
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= rdt_min_cbm_bits_show,
 		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_RES_CACHE,
+	},
+	{
+		.name		= "bitmaps_min_bits",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_min_cbm_bits_show,
+		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_SCHEMA_BITMAP,
 	},
 	{
 		.name		= "shareable_bits",
@@ -1966,11 +1980,25 @@ static struct rftype res_common_files[] = {
 		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_RES_MB,
 	},
 	{
+		.name		= "percent_min",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_min_bw_show,
+		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_SCHEMA_PERCENT,
+	},
+	{
 		.name		= "bandwidth_gran",
 		.mode		= 0444,
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= rdt_bw_gran_show,
 		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_RES_MB,
+	},
+	{
+		.name		= "percent_gran",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_bw_gran_show,
+		.fflags		= RFTYPE_CTRL_INFO | RFTYPE_SCHEMA_PERCENT,
 	},
 	{
 		.name		= "delay_linear",
