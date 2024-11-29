@@ -1013,7 +1013,9 @@ static void this_cpu_set_vectors(enum arm64_bp_harden_el1_vectors slot)
 #ifdef CONFIG_KVM
 static int kvm_bhb_get_vecs_size(const char *start)
 {
-	if (start == __smccc_workaround_3_smc)
+	if (start == __smccc_workaround_1_smc)
+		return __SMCCC_WORKAROUND_1_SMC_SZ;
+	else if (start == __smccc_workaround_3_smc)
 		return __SMCCC_WORKAROUND_3_SMC_SZ;
 	else if (start == __spectre_bhb_loop_k8 ||
 		 start == __spectre_bhb_loop_k24 ||
@@ -1057,6 +1059,7 @@ static void kvm_setup_bhb_slot(const char *hyp_vecs_start)
 	raw_spin_unlock(&bp_lock);
 }
 #else
+#define __smccc_workaround_1_smc NULL
 #define __smccc_workaround_3_smc NULL
 #define __spectre_bhb_loop_k8 NULL
 #define __spectre_bhb_loop_k24 NULL
