@@ -849,6 +849,14 @@ enum mitigation_state arm64_get_spectre_bhb_state(void)
 	return spectre_bhb_state;
 }
 
+enum bhb_mitigation_bits {
+	BHB_LOOP,
+	BHB_FW,
+	BHB_HW,
+	BHB_INSN,
+};
+static unsigned long system_bhb_mitigations;
+
 /*
  * This must be called with SCOPE_LOCAL_CPU for each type of CPU, before any
  * SCOPE_SYSTEM call will give the right answer.
@@ -1104,21 +1112,25 @@ void spectre_bhb_enable_mitigation(const struct arm64_cpu_capabilities *entry)
 		pr_info_once("spectre-bhb mitigation disabled by command line option\n");
 	} else if (supports_ecbhb(SCOPE_LOCAL_CPU)) {
 		state = SPECTRE_MITIGATED;
+		set_bit(BHB_HW, &system_bhb_mitigations);
 	} else if (supports_clearbhb(SCOPE_LOCAL_CPU)) {
 		kvm_setup_bhb_slot(__spectre_bhb_clearbhb);
 		this_cpu_set_vectors(EL1_VECTOR_BHB_CLEAR_INSN);
 
 		state = SPECTRE_MITIGATED;
+		set_bit(BHB_INSN, &system_bhb_mitigations);
 	} else if (spectre_bhb_loop_affected(SCOPE_LOCAL_CPU)) {
 		spectre_bhb_enable_loop_mitigation();
 
 		state = SPECTRE_MITIGATED;
+		set_bit(BHB_LOOP, &system_bhb_mitigations);
 	} else if (is_spectre_bhb_fw_affected(SCOPE_LOCAL_CPU)) {
 		fw_state = spectre_bhb_get_cpu_fw_mitigation_state();
 		if (fw_state == SPECTRE_MITIGATED) {
 			spectre_bhb_enable_fw_mitigation();
 
 			state = SPECTRE_MITIGATED;
+			set_bit(BHB_FW, &system_bhb_mitigations);
 		}
 	}
 
