@@ -1101,6 +1101,13 @@ void spectre_bhb_enable_mitigation(const struct arm64_cpu_capabilities *entry)
 			kvm_setup_bhb_slot(__smccc_workaround_3_smc);
 			this_cpu_set_vectors(EL1_VECTOR_BHB_FW);
 
+			/*
+			 * The WA3 call in the vectors supersedes the WA1 call
+			 * made during context-switch. Uninstall any firmware
+			 * bp_hardening callback.
+			 */
+			install_bp_hardening_cb(NULL);
+
 			state = SPECTRE_MITIGATED;
 		}
 	}
