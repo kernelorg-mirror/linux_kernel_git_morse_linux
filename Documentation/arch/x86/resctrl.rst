@@ -283,6 +283,22 @@ with the following files:
 	"mbm_total_bytes" or "mbm_local_bytes" will report 'Unavailable' if
 	there is no counter associated with that event.
 
+"num_mbm_cntrs":
+	The number of monitoring counters available for assignment when the
+	system supports mbm_cntr_assign mode.
+	::
+
+	  # cat /sys/fs/resctrl/info/L3_MON/num_mbm_cntrs
+	  32
+
+	The resctrl file system supports tracking up to two memory bandwidth
+	events per monitoring group: mbm_total_bytes and/or mbm_local_bytes.
+	Up to two counters can be assigned per monitoring group, one for each
+	memory bandwidth event. More monitoring groups can be tracked by
+	assigning one counter per monitoring group. However, doing so limits
+	memory bandwidth tracking to a single memory bandwidth event per
+	monitoring group.
+
 "max_threshold_occupancy":
 		Read/write file provides the largest value (in
 		bytes) at which a previously used LLC_occupancy
