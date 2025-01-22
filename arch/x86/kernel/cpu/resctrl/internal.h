@@ -734,4 +734,5 @@ int resctrl_unassign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d
 void mbm_cntr_reset(struct rdt_resource *r);
 int mbm_cntr_get(struct rdt_resource *r, struct rdt_mon_domain *d,
 		 struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
+void resctrl_arch_mbm_cntr_assign_set_one(struct rdt_resource *r);
 #endif /* _ASM_X86_RESCTRL_INTERNAL_H */
