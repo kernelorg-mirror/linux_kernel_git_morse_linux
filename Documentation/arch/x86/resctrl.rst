@@ -299,6 +299,14 @@ with the following files:
 	memory bandwidth tracking to a single memory bandwidth event per
 	monitoring group.
 
+"available_mbm_cntrs":
+	The number of monitoring counters available for assignment in each
+	domain when mbm_cntr_assign mode is enabled on the system.
+	::
+
+	 # cat /sys/fs/resctrl/info/L3_MON/available_mbm_cntrs
+	 0=30;1=30
+
 "max_threshold_occupancy":
 		Read/write file provides the largest value (in
 		bytes) at which a previously used LLC_occupancy
