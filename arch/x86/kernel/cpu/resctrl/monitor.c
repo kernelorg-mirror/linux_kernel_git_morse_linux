@@ -1518,3 +1518,42 @@ int resctrl_assign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
 
 	return ret;
 }
+
+/*
+ * Unassign and free the counter if assigned else return success.
+ */
+static int resctrl_free_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+				    struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int cntr_id, ret = 0;
+
+	cntr_id = mbm_cntr_get(r, d, rdtgrp, evtid);
+	if (cntr_id != -ENOENT) {
+		ret = resctrl_config_cntr(r, d, evtid, rdtgrp->mon.rmid,
+					  rdtgrp->closid, cntr_id, false);
+		if (!ret)
+			mbm_cntr_free(d, cntr_id);
+	}
+
+	return ret;
+}
+
+/*
+ * Unassign a hardware counter associated with @evtid from the domain and
+ * the group. Unassign the counters from all the domains if @d is NULL else
+ * unassign from @d.
+ */
+int resctrl_unassign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
+				struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int ret = 0;
+
+	if (!d) {
+		list_for_each_entry(d, &r->mon_domains, hdr.list)
+			ret = resctrl_free_config_cntr(r, d, rdtgrp, evtid);
+	} else {
+		ret = resctrl_free_config_cntr(r, d, rdtgrp, evtid);
+	}
+
+	return ret;
+}
