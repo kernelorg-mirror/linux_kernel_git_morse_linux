@@ -1557,3 +1557,30 @@ int resctrl_unassign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d
 
 	return ret;
 }
+
+void mbm_cntr_reset(struct rdt_resource *r)
+{
+	u32 idx_limit = resctrl_arch_system_num_rmid_idx();
+	struct rdt_mon_domain *dom;
+
+	/*
+	 * Reset the domain counter configuration. Hardware counters
+	 * will reset after switching the monitor mode. So, reset the
+	 * architectural amd non-architectural state so that reading
+	 * of hardware counter is not considered as an overflow in the
+	 * next update.
+	 */
+	if (is_mbm_enabled() && r->mon.mbm_cntr_assignable) {
+		list_for_each_entry(dom, &r->mon_domains, hdr.list) {
+			memset(dom->cntr_cfg, 0,
+			       sizeof(*dom->cntr_cfg) * r->mon.num_mbm_cntrs);
+			if (is_mbm_total_enabled())
+				memset(dom->mbm_total, 0,
+				       sizeof(struct mbm_state) * idx_limit);
+			if (is_mbm_local_enabled())
+				memset(dom->mbm_local, 0,
+				       sizeof(struct mbm_state) * idx_limit);
+			resctrl_arch_reset_rmid_all(r, dom);
+		}
+	}
+}
