@@ -1413,3 +1413,108 @@ int resctrl_arch_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
 
 	return 0;
 }
+
+/*
+ * Configure the counter for the event, RMID pair for the domain. Reset the
+ * non-architectural state to clear all the event counters.
+ */
+static int resctrl_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+			       enum resctrl_event_id evtid, u32 rmid, u32 closid,
+			       u32 cntr_id, bool assign)
+{
+	struct mbm_state *m;
+	int ret;
+
+	ret = resctrl_arch_config_cntr(r, d, evtid, rmid, closid, cntr_id, assign);
+	if (ret)
+		return ret;
+
+	m = get_mbm_state(d, closid, rmid, evtid);
+	if (m)
+		memset(m, 0, sizeof(struct mbm_state));
+
+	return ret;
+}
+
+static int mbm_cntr_get(struct rdt_resource *r, struct rdt_mon_domain *d,
+			struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int cntr_id;
+
+	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
+		if (d->cntr_cfg[cntr_id].rdtgrp == rdtgrp &&
+		    d->cntr_cfg[cntr_id].evtid == evtid)
+			return cntr_id;
+	}
+
+	return -ENOENT;
+}
+
+static int mbm_cntr_alloc(struct rdt_resource *r, struct rdt_mon_domain *d,
+			  struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int cntr_id;
+
+	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
+		if (!d->cntr_cfg[cntr_id].rdtgrp) {
+			d->cntr_cfg[cntr_id].rdtgrp = rdtgrp;
+			d->cntr_cfg[cntr_id].evtid = evtid;
+			return cntr_id;
+		}
+	}
+
+	return -ENOSPC;
+}
+
+static void mbm_cntr_free(struct rdt_mon_domain *d, int cntr_id)
+{
+	memset(&d->cntr_cfg[cntr_id], 0, sizeof(struct mbm_cntr_cfg));
+}
+
+/*
+ * Allocate a fresh counter and configure the event if not assigned already
+ * else return success.
+ */
+static int resctrl_alloc_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+				     struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int cntr_id, ret = 0;
+
+	if (mbm_cntr_get(r, d, rdtgrp, evtid) == -ENOENT) {
+		cntr_id = mbm_cntr_alloc(r, d, rdtgrp, evtid);
+		if (cntr_id <  0) {
+			rdt_last_cmd_printf("Domain %d is Out of MBM assignable counter\n",
+					    d->hdr.id);
+			return -ENOSPC;
+		}
+
+		ret = resctrl_config_cntr(r, d, evtid, rdtgrp->mon.rmid, rdtgrp->closid,
+					  cntr_id, true);
+		if (ret) {
+			rdt_last_cmd_printf("Assignment failed on domain %d\n", d->hdr.id);
+			mbm_cntr_free(d, cntr_id);
+		}
+	}
+
+	return ret;
+}
+
+/*
+ * Assign a hardware counter to event @evtid of group @rdtgrp.
+ * Counter will be assigned to all the domains if @d is NULL else
+ * the counter will be assigned to @d.
+ */
+int resctrl_assign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
+			      struct rdtgroup *rdtgrp, enum resctrl_event_id evtid)
+{
+	int ret = 0;
+
+	if (!d) {
+		list_for_each_entry(d, &r->mon_domains, hdr.list)
+			ret = resctrl_alloc_config_cntr(r, d, rdtgrp, evtid);
+	} else {
+		ret = resctrl_alloc_config_cntr(r, d, rdtgrp, evtid);
+	}
+
+	return ret;
+}
