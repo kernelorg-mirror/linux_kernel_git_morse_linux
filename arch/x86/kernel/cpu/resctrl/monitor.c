@@ -1354,26 +1354,26 @@ u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
 	return INVALID_CONFIG_VALUE;
 }
 
-void resctrl_arch_mon_event_config_set(void *info)
+static void resctrl_arch_mon_event_config_set(struct rdt_mon_domain *d,
+					      enum resctrl_event_id eventid, u32 val)
 {
-	struct mon_config_info *mon_info = info;
 	struct rdt_hw_mon_domain *hw_dom;
 	unsigned int index;
 
-	index = mon_event_config_index_get(mon_info->evtid);
+	index = mon_event_config_index_get(eventid);
 	if (index == INVALID_CONFIG_INDEX)
 		return;
 
-	wrmsr(MSR_IA32_EVT_CFG_BASE + index, mon_info->mon_config, 0);
+	wrmsr(MSR_IA32_EVT_CFG_BASE + index, val, 0);
 
-	hw_dom = resctrl_to_arch_mon_dom(mon_info->d);
+	hw_dom = resctrl_to_arch_mon_dom(d);
 
-	switch (mon_info->evtid) {
+	switch (eventid) {
 	case QOS_L3_MBM_TOTAL_EVENT_ID:
-		hw_dom->mbm_total_cfg = mon_info->mon_config;
+		hw_dom->mbm_total_cfg = val;
 		break;
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
-		hw_dom->mbm_local_cfg = mon_info->mon_config;
+		hw_dom->mbm_local_cfg = val;
 		break;
 	default:
 		break;
@@ -1591,4 +1591,46 @@ void mbm_cntr_reset(struct rdt_resource *r)
 			resctrl_arch_reset_rmid_all(r, dom);
 		}
 	}
+}
+
+/*
+ * Update hardware counter configuration after event configuration change.
+ * Walk the hardware counters of domain @d to reconfigure all assigned
+ * counters that are monitoring @evtid with the event's new configuration
+ * value.
+ * This is run on a CPU belonging to domain @d so call
+ * resctrl_abmc_config_one_amd() directly.
+ */
+static void resctrl_arch_update_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+				     enum resctrl_event_id evtid, u32 val)
+{
+	union l3_qos_abmc_cfg abmc_cfg = { 0 };
+	struct rdtgroup *rdtgrp;
+	u32 cntr_id;
+
+	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
+		rdtgrp = d->cntr_cfg[cntr_id].rdtgrp;
+		if (rdtgrp && d->cntr_cfg[cntr_id].evtid == evtid) {
+			abmc_cfg.split.cfg_en = 1;
+			abmc_cfg.split.cntr_en = 1;
+			abmc_cfg.split.cntr_id = cntr_id;
+			abmc_cfg.split.bw_src = rdtgrp->mon.rmid;
+			abmc_cfg.split.bw_type = val;
+			resctrl_abmc_config_one_amd(&abmc_cfg);
+		}
+	}
+}
+
+void resctrl_mon_event_config_set(void *info)
+{
+	struct mon_config_info *mon_info = info;
+	struct rdt_mon_domain *d = mon_info->d;
+	struct rdt_resource *r = mon_info->r;
+
+	resctrl_arch_mon_event_config_set(d, mon_info->evtid, mon_info->mon_config);
+
+	/* Check if assignments needs to be updated */
+	if (resctrl_arch_mbm_cntr_assign_enabled(r))
+		resctrl_arch_update_cntr(r, d, mon_info->evtid,
+					 mon_info->mon_config);
 }

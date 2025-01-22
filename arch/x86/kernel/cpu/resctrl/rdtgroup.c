@@ -1740,10 +1740,10 @@ static int mbm_local_bytes_config_show(struct kernfs_open_file *of,
 	return 0;
 }
 
-
 static void mbm_config_write_domain(struct rdt_resource *r,
 				    struct rdt_mon_domain *d, u32 evtid, u32 val)
 {
+	u32 idx_limit = resctrl_arch_system_num_rmid_idx();
 	struct mon_config_info mon_info = {0};
 	u32 config_val;
 
@@ -1755,6 +1755,7 @@ static void mbm_config_write_domain(struct rdt_resource *r,
 	if (config_val == INVALID_CONFIG_VALUE || config_val == val)
 		return;
 
+	mon_info.r = r;
 	mon_info.d = d;
 	mon_info.evtid = evtid;
 	mon_info.mon_config = val;
@@ -1766,7 +1767,7 @@ static void mbm_config_write_domain(struct rdt_resource *r,
 	 * on one CPU is observed by all the CPUs in the domain.
 	 */
 	smp_call_function_any(&d->hdr.cpu_mask,
-			      resctrl_arch_mon_event_config_set,
+			      resctrl_mon_event_config_set,
 			      &mon_info, 1);
 
 	/*
@@ -1779,6 +1780,11 @@ static void mbm_config_write_domain(struct rdt_resource *r,
 	 * mbm_local and mbm_total counts for all the RMIDs.
 	 */
 	resctrl_arch_reset_rmid_all(r, d);
+
+	if (is_mbm_total_enabled())
+		memset(d->mbm_total, 0, sizeof(struct mbm_state) * idx_limit);
+	if (is_mbm_local_enabled())
+		memset(d->mbm_local, 0, sizeof(struct mbm_state) * idx_limit);
 }
 
 static int mon_config_write(struct rdt_resource *r, char *tok, u32 evtid)

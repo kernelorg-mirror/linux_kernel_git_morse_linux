@@ -607,11 +607,13 @@ union cpuid_0x10_x_edx {
 
 /**
  * struct mon_config_info - Monitoring event configuratiin details
+ * @r:			Resource for monitoring
  * @d:			Domain for the event
  * @evtid:		Event type
  * @mon_config:		Event configuration value
  */
 struct mon_config_info {
+	struct rdt_resource *r;
 	struct rdt_mon_domain *d;
 	enum resctrl_event_id evtid;
 	u32 mon_config;
@@ -721,12 +723,12 @@ int resctrl_arch_mbm_cntr_assign_set(struct rdt_resource *r, bool enable);
 bool resctrl_arch_mbm_cntr_assign_enabled(struct rdt_resource *r);
 void arch_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom);
 unsigned int mon_event_config_index_get(u32 evtid);
-void resctrl_arch_mon_event_config_set(void *info);
 u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
 				      enum resctrl_event_id eventid);
 int resctrl_arch_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
 			     enum resctrl_event_id evtid, u32 rmid, u32 closid,
 			     u32 cntr_id, bool assign);
+void resctrl_mon_event_config_set(void *info);
 int resctrl_assign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
 			      struct rdtgroup *rdtgrp, enum resctrl_event_id evtid);
 int resctrl_unassign_cntr_event(struct rdt_resource *r, struct rdt_mon_domain *d,
