@@ -975,6 +975,81 @@ write_exit:
 	return ret ?: nbytes;
 }
 
+static char *rdtgroup_mon_state_to_str(struct rdt_resource *r,
+				       struct rdt_mon_domain *d,
+				       struct rdtgroup *rdtgrp, char *str)
+{
+	char *tmp = str;
+
+	/* Query the total and local event flags for the domain */
+	if (mbm_cntr_get(r, d, rdtgrp, QOS_L3_MBM_TOTAL_EVENT_ID) != -ENOENT)
+		*tmp++ = 't';
+
+	if (mbm_cntr_get(r, d, rdtgrp, QOS_L3_MBM_LOCAL_EVENT_ID) != -ENOENT)
+		*tmp++ = 'l';
+
+	if (tmp == str)
+		*tmp++ = '_';
+
+	*tmp = '\0';
+	return str;
+}
+
+static int resctrl_mbm_assign_control_show(struct kernfs_open_file *of,
+					   struct seq_file *s, void *v)
+{
+	struct rdt_resource *r = of->kn->parent->priv;
+	struct rdtgroup *rdtg, *crg;
+	struct rdt_mon_domain *dom;
+	char str[10];
+	bool sep;
+
+	cpus_read_lock();
+	mutex_lock(&rdtgroup_mutex);
+	rdt_last_cmd_clear();
+
+	if (!resctrl_arch_mbm_cntr_assign_enabled(r)) {
+		rdt_last_cmd_puts("mbm_cntr_assign mode is not enabled\n");
+		mutex_unlock(&rdtgroup_mutex);
+		cpus_read_unlock();
+		return -EINVAL;
+	}
+
+	list_for_each_entry(rdtg, &rdt_all_groups, rdtgroup_list) {
+		seq_printf(s, "%s//", rdtg->kn->name);
+
+		sep = false;
+		list_for_each_entry(dom, &r->mon_domains, hdr.list) {
+			if (sep)
+				seq_puts(s, ";");
+
+			seq_printf(s, "%d=%s", dom->hdr.id,
+				   rdtgroup_mon_state_to_str(r, dom, rdtg, str));
+
+			sep = true;
+		}
+		seq_putc(s, '\n');
+
+		list_for_each_entry(crg, &rdtg->mon.crdtgrp_list, mon.crdtgrp_list) {
+			seq_printf(s, "%s/%s/", rdtg->kn->name, crg->kn->name);
+
+			sep = false;
+			list_for_each_entry(dom, &r->mon_domains, hdr.list) {
+				if (sep)
+					seq_puts(s, ";");
+				seq_printf(s, "%d=%s", dom->hdr.id,
+					   rdtgroup_mon_state_to_str(r, dom, crg, str));
+				sep = true;
+			}
+			seq_putc(s, '\n');
+		}
+	}
+
+	mutex_unlock(&rdtgroup_mutex);
+	cpus_read_unlock();
+	return 0;
+}
+
 #ifdef CONFIG_PROC_CPU_RESCTRL
 
 /*
@@ -1995,6 +2070,12 @@ static struct rftype res_common_files[] = {
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= mbm_local_bytes_config_show,
 		.write		= mbm_local_bytes_config_write,
+	},
+	{
+		.name		= "mbm_assign_control",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= resctrl_mbm_assign_control_show,
 	},
 	{
 		.name		= "mbm_assign_mode",
