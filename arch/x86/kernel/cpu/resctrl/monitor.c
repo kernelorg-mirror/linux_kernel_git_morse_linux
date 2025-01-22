@@ -1228,6 +1228,12 @@ int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 			resctrl_file_fflags_init("mbm_local_bytes_config",
 						 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
 		}
+
+		if (rdt_cpu_has(X86_FEATURE_ABMC)) {
+			r->mon.mbm_cntr_assignable = true;
+			cpuid_count(0x80000020, 5, &eax, &ebx, &ecx, &edx);
+			r->mon.num_mbm_cntrs = (ebx & GENMASK(15, 0)) + 1;
+		}
 	}
 
 	l3_mon_evt_init(r);
