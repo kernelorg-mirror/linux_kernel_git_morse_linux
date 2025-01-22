@@ -259,7 +259,10 @@ with the following files:
 
 "mbm_assign_mode":
 	Reports the list of monitoring modes supported. The enclosed brackets
-	indicate which mode is enabled.
+	indicate which mode is enabled. The MBM events (mbm_total_bytes and/or
+	mbm_local_bytes) associated with counters may reset when "mbm_assign_mode"
+	is changed.
+
 	::
 
 	  # cat /sys/fs/resctrl/info/L3_MON/mbm_assign_mode
@@ -275,6 +278,16 @@ with the following files:
 	available is described in the "num_mbm_cntrs" file. Changing the mode
 	may cause all counters on a resource to reset.
 
+	Moving to mbm_cntr_assign mode require users to assign the counters to
+	the events. Otherwise, the MBM event counters will return "Unassigned"
+	when read.
+
+	The mode is beneficial for AMD platforms that support more CTRL_MON
+	and MON groups than available hardware counters. By default, this
+	feature is enabled on AMD platforms with the ABMC (Assignable Bandwidth
+	Monitoring Counters) capability, ensuring counters remain assigned even
+	when the corresponding RMID is not actively used by any processor.
+
 	"default":
 
 	In default mode, resctrl assumes there is a hardware counter for each
@@ -282,6 +295,16 @@ with the following files:
 	recommended to use mbm_cntr_assign mode if supported, because reading
 	"mbm_total_bytes" or "mbm_local_bytes" will report 'Unavailable' if
 	there is no counter associated with that event.
+
+	* To enable "mbm_cntr_assign" mode:
+	  ::
+
+	    # echo "mbm_cntr_assign" > /sys/fs/resctrl/info/L3_MON/mbm_assign_mode
+
+	* To enable default monitoring mode:
+	  ::
+
+	    # echo "default" > /sys/fs/resctrl/info/L3_MON/mbm_assign_mode
 
 "num_mbm_cntrs":
 	The number of monitoring counters available for assignment when the
