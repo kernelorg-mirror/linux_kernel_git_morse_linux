@@ -724,4 +724,7 @@ unsigned int mon_event_config_index_get(u32 evtid);
 void resctrl_arch_mon_event_config_set(void *info);
 u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
 				      enum resctrl_event_id eventid);
+int resctrl_arch_config_cntr(struct rdt_resource *r, struct rdt_mon_domain *d,
+			     enum resctrl_event_id evtid, u32 rmid, u32 closid,
+			     u32 cntr_id, bool assign);
 #endif /* _ASM_X86_RESCTRL_INTERNAL_H */
