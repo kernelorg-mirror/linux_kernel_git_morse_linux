@@ -1221,6 +1221,11 @@ int __init resctrl_mon_resource_init(void)
 		resctrl_file_fflags_init("mbm_assign_control", RFTYPE_MON_INFO);
 	}
 
+	if (resctrl_arch_is_mbm_local_enabled())
+		mba_mbps_default_event = QOS_L3_MBM_LOCAL_EVENT_ID;
+	else if (resctrl_arch_is_mbm_total_enabled())
+		mba_mbps_default_event = QOS_L3_MBM_TOTAL_EVENT_ID;
+
 	return 0;
 }
 
