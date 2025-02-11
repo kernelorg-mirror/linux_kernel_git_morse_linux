@@ -1215,6 +1215,11 @@ int __init resctrl_mon_resource_init(void)
 		resctrl_file_fflags_init("mbm_local_bytes_config",
 					 RFTYPE_MON_INFO | RFTYPE_RES_CACHE);
 	}
+	if (r->mon.mbm_cntr_assignable) {
+		resctrl_file_fflags_init("num_mbm_cntrs", RFTYPE_MON_INFO);
+		resctrl_file_fflags_init("available_mbm_cntrs", RFTYPE_MON_INFO);
+		resctrl_file_fflags_init("mbm_assign_control", RFTYPE_MON_INFO);
+	}
 
 	return 0;
 }
@@ -1264,9 +1269,6 @@ int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 			cpuid_count(0x80000020, 5, &eax, &ebx, &ecx, &edx);
 			r->mon.num_mbm_cntrs = (ebx & GENMASK(15, 0)) + 1;
 			hw_res->mbm_cntr_assign_enabled = true;
-			resctrl_file_fflags_init("num_mbm_cntrs", RFTYPE_MON_INFO);
-			resctrl_file_fflags_init("available_mbm_cntrs", RFTYPE_MON_INFO);
-			resctrl_file_fflags_init("mbm_assign_control", RFTYPE_MON_INFO);
 		}
 	}
 
