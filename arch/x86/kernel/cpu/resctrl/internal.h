@@ -626,7 +626,8 @@ bool closid_allocated(unsigned int closid);
 int resctrl_find_cleanest_closid(void);
 int resctrl_arch_mbm_cntr_assign_set(struct rdt_resource *r, bool enable);
 bool resctrl_arch_mbm_cntr_assign_enabled(struct rdt_resource *r);
-void arch_mbm_evt_config_init(struct rdt_hw_mon_domain *hw_dom);
+void arch_mbm_evt_config_init_one(struct rdt_hw_mon_domain *hw_dom,
+				  enum resctrl_event_id evt);
 unsigned int mon_event_config_index_get(u32 evtid);
 u32 resctrl_arch_mon_event_config_get(struct rdt_mon_domain *d,
 				      enum resctrl_event_id eventid);
