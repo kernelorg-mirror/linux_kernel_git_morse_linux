@@ -1476,7 +1476,11 @@ int mbm_cntr_get(struct rdt_resource *r, struct rdt_mon_domain *d,
 	int cntr_id;
 
 	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
-		if (d->cntr_cfg[cntr_id].rdtgrp == rdtgrp &&
+		if (!d->cntr_cfg[cntr_id].valid)
+			continue;
+
+		if (d->cntr_cfg[cntr_id].closid == rdtgrp->closid &&
+		    d->cntr_cfg[cntr_id].rmid == rdtgrp->mon.rmid &&
 		    d->cntr_cfg[cntr_id].evtid == evtid)
 			return cntr_id;
 	}
@@ -1490,9 +1494,11 @@ static int mbm_cntr_alloc(struct rdt_resource *r, struct rdt_mon_domain *d,
 	int cntr_id;
 
 	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
-		if (!d->cntr_cfg[cntr_id].rdtgrp) {
-			d->cntr_cfg[cntr_id].rdtgrp = rdtgrp;
+		if (!d->cntr_cfg[cntr_id].valid) {
+			d->cntr_cfg[cntr_id].closid = rdtgrp->closid;
+			d->cntr_cfg[cntr_id].rmid = rdtgrp->mon.rmid;
 			d->cntr_cfg[cntr_id].evtid = evtid;
+			d->cntr_cfg[cntr_id].valid = true;
 			return cntr_id;
 		}
 	}
@@ -1631,16 +1637,18 @@ static void resctrl_arch_update_cntr(struct rdt_resource *r, struct rdt_mon_doma
 				     enum resctrl_event_id evtid, u32 val)
 {
 	union l3_qos_abmc_cfg abmc_cfg = { 0 };
-	struct rdtgroup *rdtgrp;
-	u32 cntr_id;
+	u32 cntr_id, rmid;
 
 	for (cntr_id = 0; cntr_id < r->mon.num_mbm_cntrs; cntr_id++) {
-		rdtgrp = d->cntr_cfg[cntr_id].rdtgrp;
-		if (rdtgrp && d->cntr_cfg[cntr_id].evtid == evtid) {
+		if (!d->cntr_cfg[cntr_id].valid)
+			continue;
+
+		rmid = d->cntr_cfg[cntr_id].rmid;
+		if (d->cntr_cfg[cntr_id].evtid == evtid) {
 			abmc_cfg.split.cfg_en = 1;
 			abmc_cfg.split.cntr_en = 1;
 			abmc_cfg.split.cntr_id = cntr_id;
-			abmc_cfg.split.bw_src = rdtgrp->mon.rmid;
+			abmc_cfg.split.bw_src = rmid;
 			abmc_cfg.split.bw_type = val;
 			resctrl_abmc_config_one_amd(&abmc_cfg);
 		}

@@ -105,14 +105,17 @@ struct rdt_ctrl_domain {
 
 /**
  * struct mbm_cntr_cfg - assignable counter configuration
+ * @valid:		 Whether this configuration is valid.
  * @evtid:		 MBM event to which the counter is assigned. Only valid
  *			 if @rdtgroup is not NULL.
- * @rdtgroup:		 resctrl group assigned to the counter. NULL if the
- *			 counter is free.
+ * @closid:		 CLOSID assigned to the counter.
+ * @rmid:		 RMID assigned to the counter.
  */
 struct mbm_cntr_cfg {
+	bool			valid;
 	enum resctrl_event_id	evtid;
-	struct rdtgroup		*rdtgrp;
+	u32			closid;
+	u32			rmid;
 };
 
 /**

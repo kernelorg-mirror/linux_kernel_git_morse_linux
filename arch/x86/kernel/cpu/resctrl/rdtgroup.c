@@ -928,7 +928,7 @@ static int resctrl_available_mbm_cntrs_show(struct kernfs_open_file *of,
 
 		cntrs = 0;
 		for (i = 0; i < r->mon.num_mbm_cntrs; i++) {
-			if (!dom->cntr_cfg[i].rdtgrp)
+			if (!dom->cntr_cfg[i].valid)
 				cntrs++;
 		}
 
