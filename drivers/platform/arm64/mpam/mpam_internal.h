@@ -26,7 +26,9 @@ DECLARE_STATIC_KEY_FALSE(mpam_enabled);
 #endif
 
 /* Value to indicate the allocated monitor is derived from the RMID index. */
-#define USE_RMID_IDX	(U16_MAX + 1)
+#define USE_RMID_IDX		(U16_MAX + 1)
+#define USE_ABMC_ASSIGNED	(U16_MAX + 2)
+#define ABMC_UNALLOCATED	(U16_MAX + 3)
 
 /*
  * Only these event configuration bits are supported. MPAM can't know if
@@ -417,11 +419,31 @@ struct mpam_resctrl_dom {
 	struct rdt_mon_domain	resctrl_mon_dom;
 
 	u32			mbm_local_evt_cfg;
+	u32			mbm_total_evt_cfg;
+
+	/*
+	 * If ABMC is supported, array of hardare monitor numbers assigned
+	 * by resctrl, indexed by partid/pmg 'idx'. These can be different
+	 * on each domain.
+	 */
+	u32			*abmc_idx_to_mon;
 };
 
 struct mpam_resctrl_res {
 	struct mpam_class	*class;
 	struct rdt_resource	resctrl_res;
+
+	/* Whether counters were pre-allocated and are left running */
+	bool mpam_monitors_free_runing;
+
+	/* Whether counters have been assigned via ABMC */
+	bool mpam_monitors_assigned;
+
+	/*
+	 * If ABMC is supported, array of hardare monitor numbers managed
+	 * by resctrl. These can be assigned on each domain.
+	 */
+	u32			*ambc_cntr_id_to_mon;
 };
 
 static inline int mpam_alloc_csu_mon(struct mpam_class *class)

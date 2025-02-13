@@ -47,6 +47,9 @@ static inline unsigned int resctrl_arch_round_mon_val(unsigned int val)
 	return val;
 }
 
+struct rdt_resource;
+static inline void resctrl_arch_mbm_cntr_assign_set_one(struct rdt_resource *r) { }
+
 bool resctrl_arch_alloc_capable(void);
 bool resctrl_arch_mon_capable(void);
 bool resctrl_arch_is_llc_occupancy_enabled(void);
