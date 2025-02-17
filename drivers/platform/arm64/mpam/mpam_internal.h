@@ -117,7 +117,7 @@ struct mpam_msc {
 	struct mutex		outer_mon_sel_lock;
 	bool			outer_lock_held;
 	unsigned long		inner_mon_sel_flags;
-	spinlock_t		inner_mon_sel_lock;
+	raw_spinlock_t		inner_mon_sel_lock;
 
 	void __iomem		*mapped_hwpage;
 	size_t			mapped_hwpage_sz;
@@ -138,7 +138,11 @@ static inline bool __must_check mpam_mon_sel_inner_lock(struct mpam_msc *msc)
 	WARN_ON_ONCE(!msc->outer_lock_held);
 
 	if (msc->iface == MPAM_IFACE_MMIO) {
-		spin_lock_irqsave(&msc->inner_mon_sel_lock, msc->inner_mon_sel_flags);
+		/*
+		 * Called via smp_call_function_any() in hard-irq context,
+		 * use a raw spin lock.
+		 */
+		raw_spin_lock_irqsave(&msc->inner_mon_sel_lock, msc->inner_mon_sel_flags);
 		return true;
 	}
 
@@ -151,7 +155,7 @@ static inline void mpam_mon_sel_inner_unlock(struct mpam_msc *msc)
 	WARN_ON_ONCE(!msc->outer_lock_held);
 
 	if (msc->iface == MPAM_IFACE_MMIO)
-		spin_unlock_irqrestore(&msc->inner_mon_sel_lock, msc->inner_mon_sel_flags);
+		raw_spin_unlock_irqrestore(&msc->inner_mon_sel_lock, msc->inner_mon_sel_flags);
 }
 
 static inline void mpam_mon_sel_outer_lock(struct mpam_msc *msc)

@@ -2105,7 +2105,7 @@ static int mpam_msc_drv_probe(struct platform_device *pdev)
 		mutex_init(&msc->probe_lock);
 		mutex_init(&msc->part_sel_lock);
 		mutex_init(&msc->outer_mon_sel_lock);
-		spin_lock_init(&msc->inner_mon_sel_lock);
+		raw_spin_lock_init(&msc->inner_mon_sel_lock);
 		msc->id = mpam_num_msc++;
 		msc->pdev = pdev;
 		INIT_LIST_HEAD_RCU(&msc->glbl_list);
