@@ -1199,25 +1199,25 @@ check_state:
 		break;
 	}
 
-	if (unassign_state & ASSIGN_TOTAL) {
+	if (resctrl_arch_is_mbm_total_enabled() && (unassign_state & ASSIGN_TOTAL)) {
 		ret = resctrl_unassign_cntr_event(r, d, rdtgrp, QOS_L3_MBM_TOTAL_EVENT_ID);
 		if (ret)
 			goto out_fail;
 	}
 
-	if (unassign_state & ASSIGN_LOCAL) {
+	if (resctrl_arch_is_mbm_local_enabled() && (unassign_state & ASSIGN_LOCAL)) {
 		ret = resctrl_unassign_cntr_event(r, d, rdtgrp, QOS_L3_MBM_LOCAL_EVENT_ID);
 		if (ret)
 			goto out_fail;
 	}
 
-	if (assign_state & ASSIGN_TOTAL) {
+	if (resctrl_arch_is_mbm_total_enabled() && (assign_state & ASSIGN_TOTAL)) {
 		ret = resctrl_assign_cntr_event(r, d, rdtgrp, QOS_L3_MBM_TOTAL_EVENT_ID);
 		if (ret)
 			goto out_fail;
 	}
 
-	if (assign_state & ASSIGN_LOCAL) {
+	if (resctrl_arch_is_mbm_local_enabled() && (assign_state & ASSIGN_LOCAL)) {
 		ret = resctrl_assign_cntr_event(r, d, rdtgrp, QOS_L3_MBM_LOCAL_EVENT_ID);
 		if (ret)
 			goto out_fail;
