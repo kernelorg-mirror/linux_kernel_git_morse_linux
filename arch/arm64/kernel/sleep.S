@@ -50,6 +50,7 @@
 	lsr	\mask ,\mask, \rs3
 	orr	\dst, \dst, \mask		// dst|=(aff3>>rs3)
 	.endm
+
 /*
  * Save CPU state in the provided sleep_stack_data area, and publish its
  * location for cpu_resume()'s use in sleep_save_stash.
