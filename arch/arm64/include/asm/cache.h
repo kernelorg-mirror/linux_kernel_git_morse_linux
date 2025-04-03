@@ -42,6 +42,7 @@
 
 #include <asm/cputype.h>
 #include <asm/mte-def.h>
+#include <asm/suspend.h>
 #include <asm/sysreg.h>
 
 #ifdef CONFIG_KASAN_SW_TAGS
@@ -86,6 +87,19 @@ static inline int cache_line_size_of_cpu(void)
 int cache_line_size(void);
 
 #define dma_get_cache_alignment	cache_line_size
+
+/* Compress a u64 MPIDR value into 32 bits. */
+static inline u64 arch_compact_of_hwid(u64 id)
+{
+	u64 aff3 = MPIDR_AFFINITY_LEVEL(id, 3);
+
+	/* These bits are expected to be RES0 */
+	if (FIELD_GET(GENMASK_ULL(63, 40), id))
+		return id;
+
+	return (aff3 << 24) | FIELD_GET(GENMASK_ULL(23, 0), id);
+}
+#define arch_compact_of_hwid	arch_compact_of_hwid
 
 /*
  * Read the effective value of CTR_EL0.
