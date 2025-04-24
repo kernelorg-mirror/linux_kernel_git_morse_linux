@@ -22,7 +22,7 @@ DECLARE_PER_CPU(u64, arm64_mpam_default);
 DECLARE_PER_CPU(u64, arm64_mpam_current);
 
 /*
- * The value of the MPAM1_EL1 sysreg when a task is in the default group.
+ * The value of the MPAM0_EL1 sysreg when a task is in the default group.
  * This is used by the context switch code to use the resctrl CPU property
  * instead. The value is modified when CDP is enabled/disabled by mounting
  * the resctrl filesystem.
@@ -60,10 +60,10 @@ static inline void mpam_set_cpu_defaults(int cpu, u16 partid_d, u16 partid_i,
 {
 	u64 default_val;
 
-	default_val = FIELD_PREP(MPAM1_EL1_PARTID_D, partid_d);
-	default_val |= FIELD_PREP(MPAM1_EL1_PARTID_I, partid_i);
-	default_val |= FIELD_PREP(MPAM1_EL1_PMG_D, pmg_d);
-	default_val |= FIELD_PREP(MPAM1_EL1_PMG_I, pmg_i);
+	default_val = FIELD_PREP(MPAM0_EL1_PARTID_D, partid_d);
+	default_val |= FIELD_PREP(MPAM0_EL1_PARTID_I, partid_i);
+	default_val |= FIELD_PREP(MPAM0_EL1_PMG_D, pmg_d);
+	default_val |= FIELD_PREP(MPAM0_EL1_PMG_I, pmg_i);
 
 	WRITE_ONCE(per_cpu(arm64_mpam_default, cpu), default_val);
 }
@@ -75,10 +75,10 @@ static inline void mpam_set_task_partid_pmg(struct task_struct *tsk,
 #ifdef CONFIG_ARM64_MPAM
 	u64 regval;
 
-	regval = FIELD_PREP(MPAM1_EL1_PARTID_D, partid_d);
-	regval |= FIELD_PREP(MPAM1_EL1_PARTID_I, partid_i);
-	regval |= FIELD_PREP(MPAM1_EL1_PMG_D, pmg_d);
-	regval |= FIELD_PREP(MPAM1_EL1_PMG_I, pmg_i);
+	regval = FIELD_PREP(MPAM0_EL1_PARTID_D, partid_d);
+	regval |= FIELD_PREP(MPAM0_EL1_PARTID_I, partid_i);
+	regval |= FIELD_PREP(MPAM0_EL1_PMG_D, pmg_d);
+	regval |= FIELD_PREP(MPAM0_EL1_PMG_I, pmg_i);
 
 	WRITE_ONCE(task_thread_info(tsk)->mpam_partid_pmg, regval);
 #endif
@@ -98,10 +98,10 @@ static inline void resctrl_arch_set_rmid(struct task_struct *tsk, u32 rmid)
 #ifdef CONFIG_ARM64_MPAM
 	u64 regval = mpam_get_regval(tsk);
 
-	regval &= ~MPAM1_EL1_PMG_D;
-	regval &= ~MPAM1_EL1_PMG_I;
-	regval |= FIELD_PREP(MPAM1_EL1_PMG_D, rmid);
-	regval |= FIELD_PREP(MPAM1_EL1_PMG_I, rmid);
+	regval &= ~MPAM0_EL1_PMG_D;
+	regval &= ~MPAM0_EL1_PMG_I;
+	regval |= FIELD_PREP(MPAM0_EL1_PMG_D, rmid);
+	regval |= FIELD_PREP(MPAM0_EL1_PMG_I, rmid);
 
 	WRITE_ONCE(task_thread_info(tsk)->mpam_partid_pmg, regval);
 #endif

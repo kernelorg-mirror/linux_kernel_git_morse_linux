@@ -44,7 +44,7 @@ static bool exposed_alloc_capable;
 static bool exposed_mon_capable;
 
 /*
- * MPAM emulates CDP by setting different PARTID in the I/D fields of MPAM1_EL1.
+ * MPAM emulates CDP by setting different PARTID in the I/D fields of MPAM0_EL1.
  * This applies globally to all traffic the CPU generates.
  */
 static bool cdp_enabled;
@@ -137,11 +137,11 @@ int resctrl_arch_set_cdp_enabled(enum resctrl_res_level ignored, bool enable)
 	if (enable) {
 		partid_d = resctrl_get_config_index(partid, CDP_CODE);
 		partid_i = resctrl_get_config_index(partid, CDP_DATA);
-		regval = FIELD_PREP(MPAM1_EL1_PARTID_D, partid_d) |
-			 FIELD_PREP(MPAM1_EL1_PARTID_I, partid_i);
+		regval = FIELD_PREP(MPAM0_EL1_PARTID_D, partid_d) |
+			 FIELD_PREP(MPAM0_EL1_PARTID_I, partid_i);
 	} else {
-		regval = FIELD_PREP(MPAM1_EL1_PARTID_D, partid) |
-			 FIELD_PREP(MPAM1_EL1_PARTID_I, partid);
+		regval = FIELD_PREP(MPAM0_EL1_PARTID_D, partid) |
+			 FIELD_PREP(MPAM0_EL1_PARTID_I, partid);
 	}
 
 	resctrl_reset_task_closids();
@@ -252,7 +252,7 @@ void resctrl_arch_set_closid_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 bool resctrl_arch_match_closid(struct task_struct *tsk, u32 closid)
 {
 	u64 regval = mpam_get_regval(tsk);
-	u32 tsk_closid = FIELD_GET(MPAM1_EL1_PARTID_D, regval);
+	u32 tsk_closid = FIELD_GET(MPAM0_EL1_PARTID_D, regval);
 
 	if (cdp_enabled)
 		tsk_closid >>= 1;
@@ -264,8 +264,8 @@ bool resctrl_arch_match_closid(struct task_struct *tsk, u32 closid)
 bool resctrl_arch_match_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 {
 	u64 regval = mpam_get_regval(tsk);
-	u32 tsk_closid = FIELD_GET(MPAM1_EL1_PARTID_D, regval);
-	u32 tsk_rmid = FIELD_GET(MPAM1_EL1_PMG_D, regval);
+	u32 tsk_closid = FIELD_GET(MPAM0_EL1_PARTID_D, regval);
+	u32 tsk_rmid = FIELD_GET(MPAM0_EL1_PMG_D, regval);
 
 	if (cdp_enabled)
 		tsk_closid >>= 1;
