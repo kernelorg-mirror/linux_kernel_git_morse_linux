@@ -413,6 +413,12 @@ static inline void debugfs_create_str(const char *name, umode_t mode,
 				      char **value)
 { }
 
+static inline void debugfs_create_cpumask(const char *name, umode_t mode,
+					  struct dentry *parent, struct cpumask *value)
+{
+	return ERR_PTR(-ENODEV);
+}
+
 static inline struct dentry *debugfs_create_blob(const char *name, umode_t mode,
 				  struct dentry *parent,
 				  struct debugfs_blob_wrapper *blob)
