@@ -2299,7 +2299,9 @@ static pgprot_t get_pcc_area_mem_attribute(phys_addr_t addr)
 	if (acpi_disabled)
 		return __pgprot(PROT_DEVICE_nGnRnE);
 
+#ifdef CONFIG_ACPI
 	return __acpi_get_mem_attribute(addr);
+#endif
 }
 
 static void mpam_msc_drv_remove(struct platform_device *pdev);
