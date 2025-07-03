@@ -1630,30 +1630,46 @@ void resctrl_arch_reset_all_ctrls(struct rdt_resource *r)
 	mpam_reset_class_locked(res->class);
 }
 
-static void mpam_resctrl_domain_hdr_init(int cpu, struct mpam_component *comp,
+/**
+ * mpam_resctrl_domain_hdr_init() - Bring a subset of a domain online.
+ * @onlined_cpus:	The set of CPUs that are online from the domain's
+ *			perspective.
+ * @comp:		The mpam component being brought online.
+ * @hdr:		The header representing the domain.
+ *
+ * Adds @onlined_cpus to @hdr's cpu_mask, and sets the @hdr id.
+ * For NUMA nodes, @onlined_cpus will be cpu_possible_mask.
+ */
+static void mpam_resctrl_domain_hdr_init(const struct cpumask *onlined_cpus,
+					 struct mpam_component *comp,
 					 struct rdt_domain_hdr *hdr)
 {
+	int cpu = cpumask_any(onlined_cpus);
+
 	lockdep_assert_cpus_held();
 
 	INIT_LIST_HEAD(&hdr->list);
 	hdr->id = mpam_resctrl_pick_domain_id(cpu, comp);
-	cpumask_set_cpu(cpu, &hdr->cpu_mask);
+	cpumask_and(&hdr->cpu_mask, &hdr->cpu_mask, onlined_cpus);
 }
 
 /**
- * mpam_resctrl_offline_domain_hdr() - Update the domain header to remove a CPU.
- * @cpu:	The CPU to remove from the domain.
+ * mpam_resctrl_offline_domain_hdr() - Take a subset of a domain offline.
+ * @offlined_cpus:	The set of CPUs that are offline from the domain's
+ *			perspective.
  * @hdr:	The domain's header.
  *
- * Removes @cpu from the header mask. If this was the last CPU in the domain,
+ * Removes @offlined_cpus from @hdr's cpu_mask. If the list is empty,
  * the domain header is removed from its parent list and true is returned,
  * indicating the parent structure can be freed.
  * If there are other CPUs in the domain, returns false.
+ *
+ * For NUMA nodes, @offlined_cpus will be cpu_possible_mask.
  */
-static bool mpam_resctrl_offline_domain_hdr(unsigned int cpu,
+static bool mpam_resctrl_offline_domain_hdr(const struct cpumask *offlined_cpus,
 					    struct rdt_domain_hdr *hdr)
 {
-	cpumask_clear_cpu(cpu, &hdr->cpu_mask);
+	cpumask_andnot(&hdr->cpu_mask, &hdr->cpu_mask, offlined_cpus);
 	if (cpumask_empty(&hdr->cpu_mask)) {
 		list_del(&hdr->list);
 		return true;
@@ -1662,12 +1678,16 @@ static bool mpam_resctrl_offline_domain_hdr(unsigned int cpu,
 	return false;
 }
 
-static struct mpam_component *find_component(struct mpam_class *victim, int cpu)
+static struct mpam_component *find_component(struct mpam_class *victim,
+					     const struct cpumask *onlined_cpus)
 {
 	struct mpam_component *victim_comp;
 
 	list_for_each_entry(victim_comp, &victim->components, class_list) {
-		if (cpumask_test_cpu(cpu, &victim_comp->affinity))
+		struct cpumask tmp;
+
+		cpumask_andnot(&tmp, onlined_cpus, &victim_comp->affinity);
+		if (cpumask_empty(&tmp))
 			return victim_comp;
 	}
 
@@ -1687,12 +1707,14 @@ static void mpam_resctrl_domain_insert(struct list_head *list,
 	list_add_tail_rcu(&new->list, pos);
 }
 static struct mpam_resctrl_dom *
-mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
+mpam_resctrl_alloc_domain(const struct cpumask *onlined_cpus,
+			  struct mpam_resctrl_res *res)
 {
 	int err;
 	struct mpam_resctrl_dom *dom;
 	struct rdt_mon_domain *mon_d;
 	struct rdt_ctrl_domain *ctrl_d;
+	int cpu = cpumask_any(onlined_cpus);
 	struct mpam_class *class = res->class;
 	struct mpam_component *comp_iter, *ctrl_comp;
 	struct rdt_resource *r = &res->resctrl_res;
@@ -1717,7 +1739,8 @@ mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
 		dom->ctrl_comp = ctrl_comp;
 
 		ctrl_d = &dom->resctrl_ctrl_dom;
-		mpam_resctrl_domain_hdr_init(cpu, ctrl_comp, &ctrl_d->hdr);
+
+		mpam_resctrl_domain_hdr_init(onlined_cpus, ctrl_comp, &ctrl_d->hdr);
 		ctrl_d->hdr.type = RESCTRL_CTRL_DOMAIN;
 		mpam_resctrl_domain_insert(&r->ctrl_domains, &ctrl_d->hdr);
 		err = resctrl_online_ctrl_domain(r, ctrl_d);
@@ -1747,7 +1770,7 @@ mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
 			if (!mon->class)
 				continue;       // dummy resource
 
-			mon_comp = find_component(mon->class, cpu);
+			mon_comp = find_component(mon->class, onlined_cpus);
 			dom->mon_comp[i] = mon_comp;
 			if (mon_comp)
 				any_mon_comp = mon_comp;
@@ -1757,7 +1780,8 @@ mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
 		dom->mbm_local_evt_cfg = MPAM_RESTRL_EVT_CONFIG_VALID;
 
 		mon_d = &dom->resctrl_mon_dom;
-		mpam_resctrl_domain_hdr_init(cpu, any_mon_comp, &mon_d->hdr);
+		mpam_resctrl_domain_hdr_init(onlined_cpus, any_mon_comp,
+					     &mon_d->hdr);
 		mon_d->hdr.type = RESCTRL_MON_DOMAIN;
 		mpam_resctrl_domain_insert(&r->mon_domains, &mon_d->hdr);
 		err = resctrl_online_mon_domain(r, mon_d);
@@ -1771,7 +1795,8 @@ mpam_resctrl_alloc_domain(unsigned int cpu, struct mpam_resctrl_res *res)
 	goto out;
 
 offline_mon_hdr:
-	mpam_resctrl_offline_domain_hdr(cpu, &mon_d->hdr);
+	mpam_resctrl_offline_domain_hdr(onlined_cpus, &ctrl_d->hdr);
+
 offline_ctrl_domain:
 	resctrl_offline_ctrl_domain(r, ctrl_d);
 out:
@@ -1859,7 +1884,7 @@ int mpam_resctrl_online_cpu(unsigned int cpu)
 
 		dom = mpam_resctrl_get_domain_from_cpu(cpu, res);
 		if (!dom)
-			dom = mpam_resctrl_alloc_domain(cpu, res);
+			dom = mpam_resctrl_alloc_domain(cpumask_of(cpu), res);
 		if (IS_ERR(dom))
 			return PTR_ERR(dom);
 
@@ -1897,14 +1922,17 @@ int mpam_resctrl_offline_cpu(unsigned int cpu)
 
 			ctrl_d = &dom->resctrl_ctrl_dom;
 			resctrl_offline_ctrl_domain(&res->resctrl_res, ctrl_d);
-			ctrl_dom_empty = mpam_resctrl_offline_domain_hdr(cpu, &ctrl_d->hdr);
+			ctrl_dom_empty = mpam_resctrl_offline_domain_hdr(cpumask_of(cpu),
+									 &ctrl_d->hdr);
 		}
 
 		mon_dom_empty = true;
 		if (exposed_mon_capable) {
 			mon_d = &dom->resctrl_mon_dom;
 			resctrl_offline_mon_domain(&res->resctrl_res, mon_d);
-			mon_dom_empty = mpam_resctrl_offline_domain_hdr(cpu, &mon_d->hdr);
+			mon_dom_empty = mpam_resctrl_offline_domain_hdr(cpumask_of(cpu),
+									&mon_d->hdr);
+
 		}
 
 		if (ctrl_dom_empty && mon_dom_empty)
