@@ -11,6 +11,7 @@
 #include <linux/iommu.h>
 #include <linux/limits.h>
 #include <linux/list.h>
+#include <linux/node.h>
 #include <linux/printk.h>
 #include <linux/rculist.h>
 #include <linux/resctrl.h>
@@ -1493,30 +1494,16 @@ static bool mpam_resctrl_offline_domain_hdr(const struct cpumask *offlined_cpus,
 }
 
 static struct mpam_resctrl_dom *
-mpam_resctrl_alloc_domain(const struct cpumask *onlined_cpus,
+mpam_resctrl_alloc_domain(const struct cpumask *onlined_cpus, int nid,
+			  struct mpam_component *comp,
 			  struct mpam_resctrl_res *res)
 {
 	int err;
 	struct mpam_resctrl_dom *dom;
 	struct rdt_mon_domain *mon_d;
 	struct rdt_ctrl_domain *ctrl_d;
-	int cpu = cpumask_any(onlined_cpus);
-	struct mpam_class *class = res->class;
-	struct mpam_component *comp_iter, *comp;
 
-	comp = NULL;
-	list_for_each_entry(comp_iter, &class->components, class_list) {
-		if (cpumask_test_cpu(cpu, &comp_iter->affinity)) {
-			comp = comp_iter;
-			break;
-		}
-	}
-
-	/* cpu with unknown exported component? */
-	if (WARN_ON_ONCE(!comp))
-		return ERR_PTR(-EINVAL);
-
-	dom = kzalloc_node(sizeof(*dom), GFP_KERNEL, cpu_to_node(cpu));
+	dom = kzalloc_node(sizeof(*dom), GFP_KERNEL, nid);
 	if (!dom)
 		return ERR_PTR(-ENOMEM);
 
@@ -1550,6 +1537,53 @@ mpam_resctrl_alloc_domain(const struct cpumask *onlined_cpus,
 }
 
 static struct mpam_resctrl_dom *
+mpam_resctrl_alloc_domain_cpu(int cpu, struct mpam_resctrl_res *res)
+{
+	struct mpam_component *comp_iter, *comp;
+	struct mpam_class *class = res->class;
+
+	comp = NULL;
+	list_for_each_entry(comp_iter, &class->components, class_list) {
+		if (cpumask_test_cpu(cpu, &comp_iter->affinity)) {
+			comp = comp_iter;
+			break;
+		}
+	}
+
+	/* cpu with unknown exported component? */
+	if (WARN_ON_ONCE(!comp))
+		return ERR_PTR(-EINVAL);
+
+	return mpam_resctrl_alloc_domain(cpumask_of(cpu), cpu_to_node(cpu),
+					 comp, res);
+}
+
+static struct mpam_resctrl_dom *
+mpam_resctrl_alloc_domain_nid(int nid, struct mpam_resctrl_res *res)
+{
+	struct mpam_component *comp_iter, *comp;
+	struct mpam_class *class = res->class;
+
+	/* Only the memory class uses comp_id as nid */
+	if (class->type != MPAM_CLASS_MEMORY)
+		return ERR_PTR(-EINVAL);
+
+	comp = NULL;
+	list_for_each_entry(comp_iter, &class->components, class_list) {
+		if (comp_iter->comp_id == nid) {
+			comp = comp_iter;
+			break;
+		}
+	}
+
+	/* cpu with unknown exported component? */
+	if (WARN_ON_ONCE(!comp))
+		return ERR_PTR(-EINVAL);
+
+	return mpam_resctrl_alloc_domain(cpu_possible_mask, nid, comp, res);
+}
+
+static struct mpam_resctrl_dom *
 mpam_get_domain_from_cpu(int cpu, struct mpam_resctrl_res *res)
 {
 	struct rdt_ctrl_domain *d;
@@ -1580,7 +1614,7 @@ int mpam_resctrl_online_cpu(unsigned int cpu)
 
 		dom = mpam_get_domain_from_cpu(cpu, res);
 		if (!dom)
-			dom = mpam_resctrl_alloc_domain(cpumask_of(cpu), res);
+			dom = mpam_resctrl_alloc_domain_cpu(cpu, res);
 		if (IS_ERR(dom))
 			return PTR_ERR(dom);
 
