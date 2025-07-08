@@ -12,6 +12,7 @@
 #include <linux/limits.h>
 #include <linux/list.h>
 #include <linux/memory.h>
+#include <linux/memory_hotplug.h>
 #include <linux/node.h>
 #include <linux/printk.h>
 #include <linux/rculist.h>
@@ -1204,6 +1205,55 @@ static int mpam_resctrl_pick_domain_id(int cpu, struct mpam_component *comp)
 		 */
 		return comp->comp_id;
 	}
+}
+
+bool resctrl_arch_get_mb_uses_numa_nid(void)
+{
+	return mb_uses_numa_nid;
+}
+
+bool resctrl_arch_set_mb_uses_numa_nid(bool enabled)
+{
+	struct rdt_resource *r;
+	struct rdt_mon_domain *d;
+	struct mpam_resctrl_res *res;
+	struct mpam_resctrl_dom *dom;
+
+	if (!mb_numa_nid_possible)
+		return false;
+
+	if (mb_uses_numa_nid == enabled)
+		return true;
+
+	/* Domain IDs as NUMA nid is only defined for MBA */
+	res = &mpam_resctrl_controls[RDT_RESOURCE_MBA];
+	if (!res->class)
+		return true;
+	r = &res->resctrl_res;
+
+	cpus_read_lock();
+	get_online_mems();
+
+	/* repaint the domain IDs */
+	mb_uses_numa_nid = enabled;
+	list_for_each_entry(d, &r->mon_domains, hdr.list) {
+		int cpu = cpumask_any(&d->hdr.cpu_mask);
+
+		dom = container_of(d, struct mpam_resctrl_dom, resctrl_mon_dom);
+		d->hdr.id = mpam_resctrl_pick_domain_id(cpu, dom->comp);
+	}
+
+	if (!enabled && mb_l3_cache_id_possible)
+		r->alloc_capable = true;
+	else if (enabled && mb_numa_nid_possible)
+		r->alloc_capable = true;
+	else
+		r->alloc_capable = false;
+
+	put_online_mems();
+	cpus_read_unlock();
+
+	return true;
 }
 
 static void mpam_resctrl_monitor_init(struct mpam_class *class,
