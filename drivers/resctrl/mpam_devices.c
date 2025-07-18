@@ -3013,7 +3013,7 @@ static void mpam_debugfs_setup(void)
 		d = debugfs_create_dir(name, mpam_debugfs);
 		debugfs_create_ulong("features", 0400, d, &class->props.features[0]);
 		debugfs_create_x32("nrdy_usec", 0400, d, &class->nrdy_usec);
-		debugfs_create_x16("quirks", 0400, d, &class->quirks);
+		debugfs_create_x16("quirks", 0600, d, &class->quirks);
 		debugfs_create_x8("level", 0400, d, &class->level);
 		debugfs_create_cpumask("affinity", 0400, d, &class->affinity);
 		class->debugfs = d;
