@@ -132,6 +132,9 @@ LIST_HEAD(mpam_classes);
 /* List of all objects that can be free()d after synchronise_srcu() */
 static LLIST_HEAD(mpam_garbage);
 
+/* When mpam is disabled, the printed reason to aid debugging */
+static char *mpam_disable_reason;
+
 /*
  * Once mpam is enabled, new requestors cannot further reduce the available
  * partid. Assert that the size is fixed, and new requestors will be turned
@@ -2669,6 +2672,7 @@ static irqreturn_t __mpam_irq_handler(int irq, struct mpam_msc *msc)
 	 * Schedule the teardown work. Don't use a threaded IRQ as we can't
 	 * unregister the interrupt from the threaded part of the handler.
 	 */
+	mpam_disable_reason = "hardware error interrupt";
 	schedule_work(&mpam_broken_work);
 
 	return IRQ_HANDLED;
@@ -2968,8 +2972,10 @@ static ssize_t mpam_force_disable_write(struct file *file,
 	if (err)
 		return err;
 
-	if (user_val == 1)
+	if (user_val == 1) {
+		mpam_disable_reason = "debugfs trigger";
 		mpam_disable(NULL);
+	}
 
 	return count;
 }
@@ -3125,6 +3131,8 @@ void mpam_disable(struct work_struct *ignored)
 		mpam_msc_destroy(msc);
 	mutex_unlock(&mpam_list_lock);
 	mpam_free_garbage();
+
+	pr_err_once("MPAM disabled due to %s", mpam_disable_reason);
 }
 
 /*
