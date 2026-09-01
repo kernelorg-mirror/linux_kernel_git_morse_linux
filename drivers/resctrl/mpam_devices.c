@@ -62,7 +62,7 @@ static DEFINE_MUTEX(mpam_cpuhp_state_lock);
  * The smallest common values for any CPU or MSC in the system.
  * Generating traffic outside this range will result in screaming interrupts.
  */
-u16 mpam_partid_max;
+u16 mpam_control_partid_max;
 u8 mpam_pmg_max;
 static bool partid_max_init, partid_max_published;
 static DEFINE_SPINLOCK(partid_max_lock);
@@ -312,15 +312,15 @@ int mpam_register_requestor(u16 partid_max, u8 pmg_max)
 {
 	guard(spinlock)(&partid_max_lock);
 	if (!partid_max_init) {
-		mpam_partid_max = partid_max;
+		mpam_control_partid_max = partid_max;
 		mpam_pmg_max = pmg_max;
 		partid_max_init = true;
 	} else if (!partid_max_published) {
-		mpam_partid_max = min(mpam_partid_max, partid_max);
+		mpam_control_partid_max = min(mpam_control_partid_max, partid_max);
 		mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	} else {
 		/* New requestors can't lower the values */
-		if (partid_max < mpam_partid_max || pmg_max < mpam_pmg_max)
+		if (partid_max < mpam_control_partid_max || pmg_max < mpam_pmg_max)
 			return -EBUSY;
 	}
 
@@ -798,7 +798,7 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 	lockdep_assert_held(&msc->probe_lock);
 	lockdep_assert_held(&msc->part_sel_lock);
 
-	props->max_partid = FIELD_GET(MPAMF_IDR_PARTID_MAX, ris->idr);
+	props->max_control_partid = FIELD_GET(MPAMF_IDR_PARTID_MAX, ris->idr);
 	props->max_pmg = FIELD_GET(MPAMF_IDR_PMG_MAX, ris->idr);
 
 	/* Cache Capacity Partitioning */
@@ -952,7 +952,7 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 		u16 partid_max = FIELD_GET(MPAMF_PARTID_NRW_IDR_INTPARTID_MAX, nrwidr);
 
 		mpam_set_feature(mpam_feat_partid_nrw, props);
-		props->max_partid = min(props->max_partid, partid_max);
+		props->max_control_partid = min(props->max_control_partid, partid_max);
 	}
 }
 
@@ -1728,7 +1728,7 @@ static int mpam_reset_ris(void *arg)
 	if (ris->in_reset_state)
 		return 0;
 
-	for (partid = 0; partid <= ris->props.max_partid; partid++)
+	for (partid = 0; partid <= ris->props.max_control_partid; partid++)
 		mpam_reprogram_ris_partid(ris, partid, &reset_cfg);
 
 	return 0;
@@ -1769,7 +1769,7 @@ static int __write_config(void *arg)
 	u16 partid;
 	struct mpam_write_config_arg *c = arg;
 
-	for_each_set_bit(partid, c->partid_set, mpam_partid_max)
+	for_each_set_bit(partid, c->partid_set, mpam_control_partid_max)
 		mpam_reprogram_ris_partid(c->ris, partid, &c->comp->cfg[partid]);
 
 	return 0;
@@ -1784,7 +1784,7 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 	partid_set_t partid_set __free(bitmap) = mpam_partid_set_alloc();
 
 	/*
-	 * No lock for mpam_partid_max as partid_max_published has been
+	 * No lock for mpam_control_partid_max as partid_max_published has been
 	 * set by mpam_enabled(), so the values can no longer change.
 	 */
 	mpam_assert_partid_sizes_fixed();
@@ -1805,12 +1805,12 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 		arg.comp = ris->vmsc->comp;
 		arg.ris = ris;
 		reset = true;
-		for (partid = 0; partid <= mpam_partid_max; partid++) {
+		for (partid = 0; partid <= mpam_control_partid_max; partid++) {
 			if (!is_empty_configuration(ris, partid))
 				reset = false;
 		}
 
-		bitmap_fill(arg.partid_set, mpam_partid_max);
+		bitmap_fill(arg.partid_set, mpam_control_partid_max);
 		mpam_touch_msc(msc, __write_config, &arg);
 		ris->in_reset_state = reset;
 
@@ -2305,7 +2305,7 @@ static void __props_mismatch(struct mpam_props *parent,
 		bitmap_and(parent->features, parent->features, child->features, MPAM_FEATURE_LAST);
 	}
 
-	parent->max_partid = min(parent->max_partid, child->max_partid);
+	parent->max_control_partid = min(parent->max_control_partid, child->max_control_partid);
 	parent->max_pmg = min(parent->max_pmg, child->max_pmg);
 }
 
@@ -2440,14 +2440,14 @@ static void mpam_enable_merge_class_features(struct mpam_component *comp)
  */
 static void mpam_enable_merge_features(struct list_head *all_classes_list)
 {
-	u16 partid_max, pmg_max;
+	u16 control_partid_max, pmg_max;
 	struct mpam_class *class;
 	struct mpam_component *comp;
 
 	lockdep_assert_held(&mpam_list_lock);
 
 	spin_lock(&partid_max_lock);
-	partid_max = mpam_partid_max;
+	control_partid_max = mpam_control_partid_max;
 	pmg_max = mpam_pmg_max;
 	spin_unlock(&partid_max_lock);
 
@@ -2460,16 +2460,16 @@ static void mpam_enable_merge_features(struct list_head *all_classes_list)
 		list_for_each_entry(comp, &class->components, class_list)
 			mpam_enable_merge_class_features(comp);
 
-		partid_max = min(partid_max, class->props.max_partid);
+		control_partid_max = min(control_partid_max, class->props.max_control_partid);
 		pmg_max = min(pmg_max, class->props.max_pmg);
 	}
 
 	/*
-	 * Once the cpuhp callbacks have been changed, mpam_partid_max can no
-	 * longer change.
+	 * Once the cpuhp callbacks have been changed, mpam_control_partid_max
+	 * can no longer change.
 	 */
 	spin_lock(&partid_max_lock);
-	mpam_partid_max = min(mpam_partid_max, partid_max);
+	mpam_control_partid_max = min(mpam_control_partid_max, control_partid_max);
 	mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	partid_max_published = true;
 	spin_unlock(&partid_max_lock);
@@ -2681,7 +2681,7 @@ static void mpam_reset_component_cfg(struct mpam_component *comp)
 	if (!comp->cfg)
 		return;
 
-	for (i = 0; i <= mpam_partid_max; i++) {
+	for (i = 0; i <= mpam_control_partid_max; i++) {
 		comp->cfg[i] = (struct mpam_config) {};
 		if (cprops->cpbm_wd)
 			comp->cfg[i].cpbm = GENMASK(cprops->cpbm_wd - 1, 0);
@@ -2701,7 +2701,7 @@ static int __allocate_component_cfg(struct mpam_component *comp)
 	if (comp->cfg)
 		return 0;
 
-	comp->cfg = kzalloc_objs(*comp->cfg, mpam_partid_max + 1);
+	comp->cfg = kzalloc_objs(*comp->cfg, mpam_control_partid_max + 1);
 	if (!comp->cfg)
 		return -ENOMEM;
 
@@ -2811,7 +2811,7 @@ static void mpam_enable_once(void)
 
 	/* Use printk() to avoid the pr_fmt adding the function name. */
 	printk(KERN_INFO "MPAM enabled with %u PARTIDs and %u PMGs\n",
-	       mpam_partid_max + 1, mpam_pmg_max + 1);
+	       mpam_control_partid_max + 1, mpam_pmg_max + 1);
 }
 
 static void mpam_reset_component_locked(struct mpam_component *comp)
@@ -2972,9 +2972,9 @@ int mpam_apply_config(struct mpam_component *comp, partid_set_t partid_set,
 	lockdep_assert_cpus_held();
 
 	/* Don't pass in the current config! */
-	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_partid_max + 1]);
+	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_control_partid_max + 1]);
 
-	for_each_set_bit(partid, partid_set, mpam_partid_max) {
+	for_each_set_bit(partid, partid_set, mpam_control_partid_max) {
 		if (mpam_update_config(&comp->cfg[partid], cfg))
 			has_changes = true;
 	}

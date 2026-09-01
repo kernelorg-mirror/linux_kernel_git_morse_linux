@@ -202,7 +202,7 @@ struct mpam_props {
 	u16			num_csu_mon;
 	u16			num_mbwu_mon;
 
-	u16			max_partid;
+	u16			max_control_partid;
 	u16			max_pmg;
 
 /*
@@ -456,7 +456,7 @@ extern struct srcu_struct mpam_srcu;
 extern struct list_head mpam_classes;
 
 /* System wide partid/pmg values */
-extern u16 mpam_partid_max;
+extern u16 mpam_control_partid_max;
 extern u8 mpam_pmg_max;
 
 /* Scheduled work callback to enable mpam once all MSC have been probed */
@@ -478,7 +478,7 @@ int mpam_get_cpumask_from_cache_id(unsigned long cache_id, u32 cache_level,
 
 static inline partid_set_t mpam_partid_set_alloc(void)
 {
-	return bitmap_zalloc(mpam_partid_max, GFP_KERNEL);
+	return bitmap_zalloc(mpam_control_partid_max, GFP_KERNEL);
 }
 
 #ifdef CONFIG_RESCTRL_FS
