@@ -798,6 +798,9 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 	lockdep_assert_held(&msc->probe_lock);
 	lockdep_assert_held(&msc->part_sel_lock);
 
+	props->max_partid = FIELD_GET(MPAMF_IDR_PARTID_MAX, ris->idr);
+	props->max_pmg = FIELD_GET(MPAMF_IDR_PMG_MAX, ris->idr);
+
 	/* Cache Capacity Partitioning */
 	if (FIELD_GET(MPAMF_IDR_HAS_CCAP_PART, ris->idr)) {
 		u32 ccap_features = mpam_read_partsel_reg(msc, CCAP_IDR);
@@ -949,15 +952,14 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 		u16 partid_max = FIELD_GET(MPAMF_PARTID_NRW_IDR_INTPARTID_MAX, nrwidr);
 
 		mpam_set_feature(mpam_feat_partid_nrw, props);
-		msc->partid_max = min(msc->partid_max, partid_max);
+		props->max_partid = min(props->max_partid, partid_max);
 	}
 }
 
 static int mpam_msc_hw_probe(struct mpam_msc *msc)
 {
 	u64 idr;
-	u16 partid_max;
-	u8 ris_idx, pmg_max;
+	u8 ris_idx;
 	struct mpam_msc_ris *ris;
 	struct device *dev = &msc->pdev->dev;
 
@@ -978,20 +980,12 @@ static int mpam_msc_hw_probe(struct mpam_msc *msc)
 
 	msc->ris_max = FIELD_GET(MPAMF_IDR_RIS_MAX, idr);
 
-	/* Use these values so partid/pmg always starts with a valid value */
-	msc->partid_max = FIELD_GET(MPAMF_IDR_PARTID_MAX, idr);
-	msc->pmg_max = FIELD_GET(MPAMF_IDR_PMG_MAX, idr);
-
 	for (ris_idx = 0; ris_idx <= msc->ris_max; ris_idx++) {
 		mutex_lock(&msc->part_sel_lock);
 		__mpam_part_sel(ris_idx, 0, msc);
 		idr = mpam_msc_read_idr(msc);
 		mutex_unlock(&msc->part_sel_lock);
 
-		partid_max = FIELD_GET(MPAMF_IDR_PARTID_MAX, idr);
-		pmg_max = FIELD_GET(MPAMF_IDR_PMG_MAX, idr);
-		msc->partid_max = min(msc->partid_max, partid_max);
-		msc->pmg_max = min(msc->pmg_max, pmg_max);
 		msc->has_extd_esr = FIELD_GET(MPAMF_IDR_HAS_EXTD_ESR, idr);
 
 		mutex_lock(&mpam_list_lock);
@@ -1009,11 +1003,6 @@ static int mpam_msc_hw_probe(struct mpam_msc *msc)
 
 	/* Clear any stale errors */
 	mpam_msc_clear_esr(msc);
-
-	spin_lock(&partid_max_lock);
-	mpam_partid_max = min(mpam_partid_max, msc->partid_max);
-	mpam_pmg_max = min(mpam_pmg_max, msc->pmg_max);
-	spin_unlock(&partid_max_lock);
 
 	msc->probed = true;
 
@@ -1732,17 +1721,14 @@ static int mpam_save_mbwu_state(void *arg)
  */
 static int mpam_reset_ris(void *arg)
 {
-	u16 partid, partid_max;
+	u16 partid;
 	struct mpam_config reset_cfg = {};
 	struct mpam_msc_ris *ris = arg;
 
 	if (ris->in_reset_state)
 		return 0;
 
-	spin_lock(&partid_max_lock);
-	partid_max = mpam_partid_max;
-	spin_unlock(&partid_max_lock);
-	for (partid = 0; partid <= partid_max; partid++)
+	for (partid = 0; partid <= ris->props.max_partid; partid++)
 		mpam_reprogram_ris_partid(ris, partid, &reset_cfg);
 
 	return 0;
@@ -2318,6 +2304,9 @@ static void __props_mismatch(struct mpam_props *parent,
 		/* Clear missing features for non aliasing */
 		bitmap_and(parent->features, parent->features, child->features, MPAM_FEATURE_LAST);
 	}
+
+	parent->max_partid = min(parent->max_partid, child->max_partid);
+	parent->max_pmg = min(parent->max_pmg, child->max_pmg);
 }
 
 /*
@@ -2451,10 +2440,16 @@ static void mpam_enable_merge_class_features(struct mpam_component *comp)
  */
 static void mpam_enable_merge_features(struct list_head *all_classes_list)
 {
+	u16 partid_max, pmg_max;
 	struct mpam_class *class;
 	struct mpam_component *comp;
 
 	lockdep_assert_held(&mpam_list_lock);
+
+	spin_lock(&partid_max_lock);
+	partid_max = mpam_partid_max;
+	pmg_max = mpam_pmg_max;
+	spin_unlock(&partid_max_lock);
 
 	list_for_each_entry(class, all_classes_list, classes_list) {
 		list_for_each_entry(comp, &class->components, class_list)
@@ -2464,7 +2459,20 @@ static void mpam_enable_merge_features(struct list_head *all_classes_list)
 
 		list_for_each_entry(comp, &class->components, class_list)
 			mpam_enable_merge_class_features(comp);
+
+		partid_max = min(partid_max, class->props.max_partid);
+		pmg_max = min(pmg_max, class->props.max_pmg);
 	}
+
+	/*
+	 * Once the cpuhp callbacks have been changed, mpam_partid_max can no
+	 * longer change.
+	 */
+	spin_lock(&partid_max_lock);
+	mpam_partid_max = min(mpam_partid_max, partid_max);
+	mpam_pmg_max = min(mpam_pmg_max, pmg_max);
+	partid_max_published = true;
+	spin_unlock(&partid_max_lock);
 }
 
 static char *mpam_errcode_names[16] = {
@@ -2758,14 +2766,6 @@ static int mpam_allocate_config(void)
 static void mpam_enable_once(void)
 {
 	int err;
-
-	/*
-	 * Once the cpuhp callbacks have been changed, mpam_partid_max can no
-	 * longer change.
-	 */
-	spin_lock(&partid_max_lock);
-	partid_max_published = true;
-	spin_unlock(&partid_max_lock);
 
 	/*
 	 * If all the MSC have been probed, enabling the IRQs happens next.

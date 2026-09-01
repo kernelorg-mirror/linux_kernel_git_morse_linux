@@ -81,8 +81,6 @@ struct mpam_msc {
 	 */
 	struct mutex		probe_lock;
 	bool			probed;
-	u16			partid_max;
-	u8			pmg_max;
 	unsigned long		ris_idxs;
 	u32			ris_max;
 	u32			iidr;
@@ -203,6 +201,9 @@ struct mpam_props {
 	u16			dspri_wd;
 	u16			num_csu_mon;
 	u16			num_mbwu_mon;
+
+	u16			max_partid;
+	u16			max_pmg;
 
 /*
  * Kunit tests use memset() to set up feature combinations that should be
