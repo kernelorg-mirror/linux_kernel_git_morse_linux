@@ -63,6 +63,7 @@ static DEFINE_MUTEX(mpam_cpuhp_state_lock);
  * Generating traffic outside this range will result in screaming interrupts.
  */
 u16 mpam_control_partid_max;
+u16 mpam_monitor_partid_max;
 u8 mpam_pmg_max;
 static bool partid_max_init, partid_max_published;
 static DEFINE_SPINLOCK(partid_max_lock);
@@ -313,13 +314,16 @@ int mpam_register_requestor(u16 partid_max, u8 pmg_max)
 	guard(spinlock)(&partid_max_lock);
 	if (!partid_max_init) {
 		mpam_control_partid_max = partid_max;
+		mpam_monitor_partid_max = partid_max;
 		mpam_pmg_max = pmg_max;
 		partid_max_init = true;
 	} else if (!partid_max_published) {
 		mpam_control_partid_max = min(mpam_control_partid_max, partid_max);
+		mpam_monitor_partid_max = min(mpam_monitor_partid_max, partid_max);
 		mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	} else {
 		/* New requestors can't lower the values */
+		/* The mpam_monitor_partid_max can't be below mpam_control_partid_max */
 		if (partid_max < mpam_control_partid_max || pmg_max < mpam_pmg_max)
 			return -EBUSY;
 	}
@@ -799,6 +803,7 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 	lockdep_assert_held(&msc->part_sel_lock);
 
 	props->max_control_partid = FIELD_GET(MPAMF_IDR_PARTID_MAX, ris->idr);
+	props->max_monitor_partid = props->max_control_partid;
 	props->max_pmg = FIELD_GET(MPAMF_IDR_PMG_MAX, ris->idr);
 
 	/* Cache Capacity Partitioning */
@@ -944,6 +949,7 @@ static void mpam_ris_hw_probe(struct mpam_msc_ris *ris)
 	 * RIS with PARTID narrowing don't have enough storage for one
 	 * configuration per PARTID. If these are in a class we could use,
 	 * reduce the supported partid_max to match the number of intpartid.
+	 * Narrowing affects the controls, not the monitors.
 	 * If the class is unknown, just ignore it.
 	 */
 	if (FIELD_GET(MPAMF_IDR_HAS_PARTID_NRW, ris->idr) &&
@@ -2306,6 +2312,7 @@ static void __props_mismatch(struct mpam_props *parent,
 	}
 
 	parent->max_control_partid = min(parent->max_control_partid, child->max_control_partid);
+	parent->max_monitor_partid = min(parent->max_monitor_partid, child->max_monitor_partid);
 	parent->max_pmg = min(parent->max_pmg, child->max_pmg);
 }
 
@@ -2440,7 +2447,7 @@ static void mpam_enable_merge_class_features(struct mpam_component *comp)
  */
 static void mpam_enable_merge_features(struct list_head *all_classes_list)
 {
-	u16 control_partid_max, pmg_max;
+	u16 control_partid_max, monitor_partid_max, pmg_max;
 	struct mpam_class *class;
 	struct mpam_component *comp;
 
@@ -2448,6 +2455,7 @@ static void mpam_enable_merge_features(struct list_head *all_classes_list)
 
 	spin_lock(&partid_max_lock);
 	control_partid_max = mpam_control_partid_max;
+	monitor_partid_max = mpam_monitor_partid_max;
 	pmg_max = mpam_pmg_max;
 	spin_unlock(&partid_max_lock);
 
@@ -2461,6 +2469,7 @@ static void mpam_enable_merge_features(struct list_head *all_classes_list)
 			mpam_enable_merge_class_features(comp);
 
 		control_partid_max = min(control_partid_max, class->props.max_control_partid);
+		monitor_partid_max = min(monitor_partid_max, class->props.max_monitor_partid);
 		pmg_max = min(pmg_max, class->props.max_pmg);
 	}
 
@@ -2470,6 +2479,7 @@ static void mpam_enable_merge_features(struct list_head *all_classes_list)
 	 */
 	spin_lock(&partid_max_lock);
 	mpam_control_partid_max = min(mpam_control_partid_max, control_partid_max);
+	mpam_monitor_partid_max = min(mpam_monitor_partid_max, monitor_partid_max);
 	mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	partid_max_published = true;
 	spin_unlock(&partid_max_lock);
