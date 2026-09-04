@@ -93,6 +93,8 @@ static bool resctrl_enabled;
  * from resctrl.
  */
 static bool mpam_resctrl_fake_pmg;
+static u8 mpam_resctrl_fake_pmg_bits;
+static u16 resctrl_pmg_max;
 
 bool resctrl_arch_alloc_capable(void)
 {
@@ -290,18 +292,18 @@ u32 resctrl_arch_get_num_closid(struct rdt_resource *ignored)
 
 u32 resctrl_arch_system_num_rmid_idx(void)
 {
-	return (mpam_pmg_max + 1) * (mpam_control_partid_max + 1);
+	return (resctrl_pmg_max + 1) * (mpam_control_partid_max + 1);
 }
 
 u32 resctrl_arch_rmid_idx_encode(u32 closid, u32 rmid)
 {
-	return closid * (mpam_pmg_max + 1) + rmid;
+	return closid * (resctrl_pmg_max + 1) + rmid;
 }
 
 void resctrl_arch_rmid_idx_decode(u32 idx, u32 *closid, u32 *rmid)
 {
-	*closid = idx / (mpam_pmg_max + 1);
-	*rmid = idx % (mpam_pmg_max + 1);
+	*closid = idx / (resctrl_pmg_max + 1);
+	*rmid = idx % (resctrl_pmg_max + 1);
 }
 
 void resctrl_arch_sched_in(struct task_struct *tsk)
@@ -1947,6 +1949,8 @@ int mpam_resctrl_setup(void)
 		INIT_LIST_HEAD_RCU(&res->resctrl_res.mon_domains);
 		res->resctrl_res.rid = rid;
 	}
+
+	resctrl_pmg_max = mpam_pmg_max;
 
 	/* Find some classes to use for controls */
 	mpam_resctrl_pick_caches();
