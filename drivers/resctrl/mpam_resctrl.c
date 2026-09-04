@@ -75,6 +75,25 @@ static DECLARE_WAIT_QUEUE_HEAD(wait_cacheinfo_ready);
  */
 static bool resctrl_enabled;
 
+/*
+ * If the range of control PARTID has been limited, e.g. by the narrowing anti
+ * feature, 'fake_pmg' allows some of the PARTID bits to be used as PMG.
+ *
+ * e.g. On a system where the L3 cache supports 0xff PARTID, and the memory
+ * controller claims to, but narrowing means it can only have 0x0f control
+ * values. The additional 4 bits can be used as PMG.
+ * mpam_control_partid_max = 0x0f
+ * mpam_monitor_partid_max = 0xff
+ * mpam_pmg_max = 1
+ *
+ * When MSC are programmed, those with narrowing have their internal table
+ * configured to map 0xX3 to 0x03.
+ * Those without narrowing have all 16 PARTID programmed to
+ * the same value. Controls that can't be aliased are hidden
+ * from resctrl.
+ */
+static bool mpam_resctrl_fake_pmg;
+
 bool resctrl_arch_alloc_capable(void)
 {
 	struct mpam_resctrl_res *res;
@@ -650,15 +669,74 @@ static int update_rmid_limits(struct mpam_class *class)
 	return 0;
 }
 
+/*
+ * In 'narrowing' mode some classes will have their controls programmed
+ * multiple times, once for each alias. For bitmaps like CPOR, this just
+ * works. But min/max controls like CCAP can't be shared like this, and
+ * are filtered out here.
+ *
+ * DANGER: modifies props!
+ */
+static void mpam_resctrl_filter_aliasing_props(struct mpam_props *props)
+{
+	enum mpam_device_features i;
+
+	if (!mpam_resctrl_fake_pmg)
+		return;
+
+	/*
+	 * Narrowing can be used to re-combine the two PARTID, hiding the
+	 * fake-pmg.
+	 */
+	if (mpam_has_feature(mpam_feat_partid_nrw, props))
+		return;
+
+	for (i = 0; i < MPAM_FEATURE_LAST; i++) {
+		switch(i) {
+		/* These features do not alias */
+		case mpam_feat_cmax_softlim:
+		case mpam_feat_cmax_cmax:
+		case mpam_feat_cmax_cmin:
+		case mpam_feat_cmax_cassoc:
+		case mpam_feat_mbw_min:
+		case mpam_feat_mbw_max:
+		case mpam_feat_mbw_prop:
+		case mpam_feat_intpri_part:
+		case mpam_feat_intpri_part_0_low:
+		case mpam_feat_dspri_part:
+		case mpam_feat_dspri_part_0_low:
+			mpam_clear_feature(i, props);
+			break;
+		case mpam_feat_cpor_part:
+		case mpam_feat_mbw_part:
+		case mpam_feat_msmon:
+		case mpam_feat_msmon_csu:
+		case mpam_feat_msmon_csu_capture:
+		case mpam_feat_msmon_csu_xcl:
+		case mpam_feat_msmon_mbwu:
+		case mpam_feat_msmon_mbwu_31counter:
+		case mpam_feat_msmon_mbwu_44counter:
+		case mpam_feat_msmon_mbwu_63counter:
+		case mpam_feat_msmon_mbwu_capture:
+		case mpam_feat_msmon_mbwu_rwbw:
+		case mpam_feat_partid_nrw:
+		case MPAM_FEATURE_LAST:
+			break;
+		}
+	}
+}
+
 static bool cache_has_usable_cpor(struct mpam_class *class)
 {
-	struct mpam_props *cprops = &class->props;
+	struct mpam_props cprops = class->props;
 
-	if (!mpam_has_feature(mpam_feat_cpor_part, cprops))
+	mpam_resctrl_filter_aliasing_props(&cprops);
+
+	if (!mpam_has_feature(mpam_feat_cpor_part, &cprops))
 		return false;
 
 	/* resctrl uses u32 for all bitmap configurations */
-	return class->props.cpbm_wd <= 32;
+	return cprops.cpbm_wd <= 32;
 }
 
 static bool mba_class_use_mbw_max(struct mpam_props *cprops)
@@ -667,9 +745,13 @@ static bool mba_class_use_mbw_max(struct mpam_props *cprops)
 		cprops->bwa_wd);
 }
 
-static bool class_has_usable_mba(struct mpam_props *cprops)
+static bool class_has_usable_mba(struct mpam_props *props)
 {
-	return mba_class_use_mbw_max(cprops);
+	struct mpam_props cprops = *props;
+
+	mpam_resctrl_filter_aliasing_props(&cprops);
+
+	return mba_class_use_mbw_max(&cprops);
 }
 
 static bool cache_has_usable_csu(struct mpam_class *class)
@@ -680,6 +762,8 @@ static bool cache_has_usable_csu(struct mpam_class *class)
 		return false;
 
 	cprops = &class->props;
+
+	/* Monitors don't have an aliasing problem */
 
 	if (!mpam_has_feature(mpam_feat_msmon_csu, cprops))
 		return false;
@@ -964,6 +1048,7 @@ static void mpam_resctrl_pick_caches(void)
 			res = &mpam_resctrl_controls[RDT_RESOURCE_L2];
 		else
 			res = &mpam_resctrl_controls[RDT_RESOURCE_L3];
+
 		res->class = class;
 	}
 }
