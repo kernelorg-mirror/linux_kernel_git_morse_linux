@@ -1769,7 +1769,7 @@ static int __write_config(void *arg)
 	u16 partid;
 	struct mpam_write_config_arg *c = arg;
 
-	for_each_set_bit(partid, c->partid_set, mpam_control_partid_max)
+	for_each_set_bit(partid, c->partid_set, mpam_partid_set_size())
 		mpam_reprogram_ris_partid(c->ris, partid, &c->comp->cfg[partid]);
 
 	return 0;
@@ -1805,12 +1805,12 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 		arg.comp = ris->vmsc->comp;
 		arg.ris = ris;
 		reset = true;
-		for (partid = 0; partid <= mpam_control_partid_max; partid++) {
+		for (partid = 0; partid <= mpam_partid_set_size(); partid++) {
 			if (!is_empty_configuration(ris, partid))
 				reset = false;
 		}
 
-		bitmap_fill(arg.partid_set, mpam_control_partid_max);
+		bitmap_fill(arg.partid_set, mpam_partid_set_size());
 		mpam_touch_msc(msc, __write_config, &arg);
 		ris->in_reset_state = reset;
 
@@ -2681,7 +2681,7 @@ static void mpam_reset_component_cfg(struct mpam_component *comp)
 	if (!comp->cfg)
 		return;
 
-	for (i = 0; i <= mpam_control_partid_max; i++) {
+	for (i = 0; i <= mpam_partid_set_size(); i++) {
 		comp->cfg[i] = (struct mpam_config) {};
 		if (cprops->cpbm_wd)
 			comp->cfg[i].cpbm = GENMASK(cprops->cpbm_wd - 1, 0);
@@ -2701,7 +2701,7 @@ static int __allocate_component_cfg(struct mpam_component *comp)
 	if (comp->cfg)
 		return 0;
 
-	comp->cfg = kzalloc_objs(*comp->cfg, mpam_control_partid_max + 1);
+	comp->cfg = kzalloc_objs(*comp->cfg, mpam_partid_set_size());
 	if (!comp->cfg)
 		return -ENOMEM;
 
@@ -2972,9 +2972,9 @@ int mpam_apply_config(struct mpam_component *comp, partid_set_t partid_set,
 	lockdep_assert_cpus_held();
 
 	/* Don't pass in the current config! */
-	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_control_partid_max + 1]);
+	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_partid_set_size()]);
 
-	for_each_set_bit(partid, partid_set, mpam_control_partid_max) {
+	for_each_set_bit(partid, partid_set, mpam_partid_set_size()) {
 		if (mpam_update_config(&comp->cfg[partid], cfg))
 			has_changes = true;
 	}

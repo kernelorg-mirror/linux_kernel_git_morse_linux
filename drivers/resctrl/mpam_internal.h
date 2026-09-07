@@ -476,9 +476,14 @@ void mpam_msmon_reset_mbwu(struct mpam_component *comp, struct mon_cfg *ctx);
 int mpam_get_cpumask_from_cache_id(unsigned long cache_id, u32 cache_level,
 				   cpumask_t *affinity);
 
+static inline int mpam_partid_set_size(void)
+{
+	return mpam_control_partid_max;
+}
+
 static inline partid_set_t mpam_partid_set_alloc(void)
 {
-	return bitmap_zalloc(mpam_control_partid_max, GFP_KERNEL);
+	return bitmap_zalloc(mpam_partid_set_size(), GFP_KERNEL);
 }
 
 #ifdef CONFIG_RESCTRL_FS
