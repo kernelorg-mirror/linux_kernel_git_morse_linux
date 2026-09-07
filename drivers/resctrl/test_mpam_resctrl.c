@@ -339,6 +339,61 @@ static void test_partid_set_aliases(struct kunit *test)
 	mpam_monitor_partid_max = old_mpam_monitor_partid_max;
 }
 
+
+static void test_mpam_resctrl_enable_fake_pmg(struct kunit *test)
+{
+	u32 old_mpam_control_partid_max = mpam_control_partid_max;
+	u32 old_mpam_monitor_partid_max = mpam_monitor_partid_max;
+	bool old_mpam_resctrl_fake_pmg = mpam_resctrl_fake_pmg;
+	u16 old_mpam_pmg_max = mpam_pmg_max;
+
+	/* matched control/monitor sizes don't enable fake_pmg */
+	mpam_resctrl_fake_pmg = false;
+	mpam_control_partid_max = 8;
+	mpam_monitor_partid_max = 8;
+	mpam_pmg_max = 2;
+	mpam_resctrl_enable_fake_pmg();
+	KUNIT_EXPECT_FALSE(test, mpam_resctrl_fake_pmg);
+
+	/* Non power of 2 partid/pmg can't be used with fake_pmg */
+	mpam_resctrl_fake_pmg = false;
+	mpam_control_partid_max = 3;
+	mpam_monitor_partid_max = 8;
+	mpam_pmg_max = 2;
+	mpam_resctrl_enable_fake_pmg();
+	KUNIT_EXPECT_FALSE(test, mpam_resctrl_fake_pmg);
+
+	mpam_resctrl_fake_pmg = false;
+	mpam_control_partid_max = 4;
+	mpam_monitor_partid_max = 7;
+	mpam_pmg_max = 2;
+	mpam_resctrl_enable_fake_pmg();
+	KUNIT_EXPECT_FALSE(test, mpam_resctrl_fake_pmg);
+
+	mpam_resctrl_fake_pmg = false;
+	mpam_control_partid_max = 4;
+	mpam_monitor_partid_max = 8;
+	mpam_pmg_max = 3;
+	mpam_resctrl_enable_fake_pmg();
+	KUNIT_EXPECT_FALSE(test, mpam_resctrl_fake_pmg);
+
+	/* mismatched control/monitor sizes do enable fake_pmg */
+	mpam_resctrl_fake_pmg = false;
+	mpam_control_partid_max = 4;
+	mpam_monitor_partid_max = 8;
+	mpam_pmg_max = 2;
+	mpam_resctrl_enable_fake_pmg();
+	KUNIT_EXPECT_TRUE(test, mpam_resctrl_fake_pmg);
+	KUNIT_EXPECT_EQ(test, mpam_resctrl_fake_pmg_bits, 1);
+	KUNIT_EXPECT_EQ(test, resctrl_pmg_max, 4);
+	KUNIT_EXPECT_EQ(test, resctrl_rmid2pmg_mask, 0x1);
+
+	mpam_resctrl_fake_pmg = old_mpam_resctrl_fake_pmg;
+	mpam_control_partid_max = old_mpam_control_partid_max;
+	mpam_monitor_partid_max = old_mpam_monitor_partid_max;
+	mpam_pmg_max = old_mpam_pmg_max;
+}
+
 static struct kunit_case mpam_resctrl_test_cases[] = {
 	KUNIT_CASE(test_get_mba_granularity),
 	KUNIT_CASE_PARAM(test_mbw_max_to_percent, test_percent_value_gen_params),
@@ -348,6 +403,7 @@ static struct kunit_case mpam_resctrl_test_cases[] = {
 	KUNIT_CASE_PARAM(test_percent_max_roundtrip_stability,
 			 test_all_bwa_wd_gen_params),
 	KUNIT_CASE(test_partid_set_aliases),
+	KUNIT_CASE(test_mpam_resctrl_enable_fake_pmg),
 	{}
 };
 

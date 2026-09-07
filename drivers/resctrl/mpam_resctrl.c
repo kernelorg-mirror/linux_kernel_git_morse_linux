@@ -213,7 +213,7 @@ static void mpam_resctrl_monitor_sync_abmc_vals(struct rdt_resource *l3)
 static void partid_set_add_closid(u32 closid, enum resctrl_conf_type t, partid_set_t partid_set)
 {
 	int i;
-	u8 control_partid_bits, monitor_partid_bits, num_aliases = 0;
+	u8 control_partid_bits = 0, monitor_partid_bits, num_aliases = 0;
 	u32 base_partid = resctrl_get_config_index(closid, t);
 
 	if (mpam_resctrl_fake_pmg) {
@@ -225,6 +225,18 @@ static void partid_set_add_closid(u32 closid, enum resctrl_conf_type t, partid_s
 	for (i = 0; i <= num_aliases; i++) {
 		__set_bit(base_partid + (i << control_partid_bits), partid_set);
 	}
+}
+
+static void partid_set_add_closid_rmid(u32 closid, u32 rmid, enum resctrl_conf_type t, partid_set_t partid_set)
+{
+	u8 control_partid_bits = 0;
+	u32 alias = rmid & ~resctrl_rmid2pmg_mask;
+	u32 base_partid = resctrl_get_config_index(closid, t);
+
+	if (mpam_resctrl_fake_pmg)
+		control_partid_bits = ilog2(mpam_control_partid_max);
+
+	__set_bit(base_partid + (alias << control_partid_bits), partid_set);
 }
 
 int resctrl_arch_set_cdp_enabled(enum resctrl_res_level rid, bool enable)
@@ -308,6 +320,53 @@ static bool mpam_resctrl_hide_cdp(enum resctrl_res_level rid)
 u32 resctrl_arch_get_num_closid(struct rdt_resource *ignored)
 {
 	return mpam_control_partid_max + 1;
+}
+
+static bool mpam_resctrl_platform_has_narrowing(void)
+{
+	struct mpam_class *class;
+
+	guard(srcu)(&mpam_srcu);
+
+	if (mpam_monitor_partid_max <= mpam_control_partid_max)
+		return false;
+
+	list_for_each_entry_srcu(class, &mpam_classes, classes_list,
+				 srcu_read_lock_held(&mpam_srcu)) {
+		if (class->type == MPAM_CLASS_UNKNOWN)
+			continue;
+
+		if (mpam_has_feature(mpam_feat_partid_nrw, &class->props))
+			return true;
+	}
+
+	return false;
+}
+
+static void mpam_resctrl_enable_fake_pmg(void)
+{
+	u8 control_partid_bits, monitor_partid_bits, pmg_bits;
+	u16 num_control_partid = mpam_control_partid_max + 1;
+	u16 num_monitor_partid = mpam_monitor_partid_max + 1;
+	u16 num_pmg = mpam_pmg_max + 1;
+
+	if (!is_power_of_2(num_control_partid) ||
+	    !is_power_of_2(num_monitor_partid) ||
+	    !is_power_of_2(num_pmg))
+		return;
+
+	control_partid_bits = ilog2(num_control_partid);
+	monitor_partid_bits = ilog2(num_monitor_partid);
+	pmg_bits = ilog2(num_pmg);
+
+	if (monitor_partid_bits <= control_partid_bits)
+		return;
+
+	resctrl_rmid2pmg_mask = (1ULL << pmg_bits) - 1;
+	mpam_resctrl_fake_pmg_bits = monitor_partid_bits - control_partid_bits;
+	resctrl_pmg_max = (1UL << (pmg_bits + mpam_resctrl_fake_pmg_bits)) - 1;
+
+	mpam_resctrl_fake_pmg = true;
 }
 
 u32 resctrl_arch_system_num_rmid_idx(void)
@@ -498,6 +557,9 @@ static int __read_mon(struct mpam_resctrl_mon *mon, struct mpam_component *mon_c
 	if (!mpam_is_enabled())
 		return -EINVAL;
 
+	if (!partid_set)
+		return -ENOMEM;
+
 	if (mon_idx == USE_PRE_ALLOCATED) {
 		int mbwu_idx = resctrl_arch_rmid_idx_encode(closid, rmid);
 
@@ -511,7 +573,7 @@ static int __read_mon(struct mpam_resctrl_mon *mon, struct mpam_component *mon_c
 		return -EIO;
 	}
 
-	partid_set_add_closid(closid, cdp_type, partid_set);
+	partid_set_add_closid_rmid(closid, rmid, cdp_type, partid_set);
 	pmg = rmid & resctrl_rmid2pmg_mask;
 
 	for_each_set_bit(partid, partid_set, mpam_partid_set_size()) {
@@ -1561,6 +1623,9 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 	if (!mpam_is_enabled())
 		return -EINVAL;
 
+	if (!partid_set)
+		return -ENOMEM;
+
 	/*
 	 * No need to check the CPU as mpam_apply_config() doesn't care, and
 	 * resctrl_arch_update_domains() relies on this.
@@ -1982,6 +2047,8 @@ int mpam_resctrl_setup(void)
 	}
 
 	resctrl_pmg_max = mpam_pmg_max;
+	if (mpam_resctrl_platform_has_narrowing())
+		mpam_resctrl_enable_fake_pmg();
 
 	/* Find some classes to use for controls */
 	mpam_resctrl_pick_caches();
