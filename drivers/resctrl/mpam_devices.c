@@ -2940,7 +2940,7 @@ int mpam_apply_config(struct mpam_component *comp, u16 partid,
 	lockdep_assert_cpus_held();
 
 	/* Don't pass in the current config! */
-	WARN_ON_ONCE(&comp->cfg[partid] == cfg);
+	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_partid_max + 1]);
 
 	if (!mpam_update_config(&comp->cfg[partid], cfg))
 		return 0;
