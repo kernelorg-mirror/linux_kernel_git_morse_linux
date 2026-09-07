@@ -255,6 +255,8 @@ struct mpam_quirk {
 				 FIELD_PREP_CONST(MPAMF_IIDR_REVISION,    0)	 | \
 				 FIELD_PREP_CONST(MPAMF_IIDR_IMPLEMENTER, 0x43b))
 
+typedef unsigned long * partid_set_t;
+
 /* The values for MSMON_CFG_MBWU_FLT.RWBW */
 enum mon_filter_options {
 	COUNT_BOTH	= 0,
@@ -463,7 +465,7 @@ void mpam_disable(struct work_struct *work);
 /* Reset all the RIS in a class under cpus_read_lock() */
 void mpam_reset_class_locked(struct mpam_class *class);
 
-int mpam_apply_config(struct mpam_component *comp, u16 partid,
+int mpam_apply_config(struct mpam_component *comp, partid_set_t partid_set,
 		      struct mpam_config *cfg);
 
 int mpam_msmon_read(struct mpam_component *comp, struct mon_cfg *ctx,
@@ -472,6 +474,11 @@ void mpam_msmon_reset_mbwu(struct mpam_component *comp, struct mon_cfg *ctx);
 
 int mpam_get_cpumask_from_cache_id(unsigned long cache_id, u32 cache_level,
 				   cpumask_t *affinity);
+
+static inline partid_set_t mpam_partid_set_alloc(void)
+{
+	return bitmap_zalloc(mpam_partid_max, GFP_KERNEL);
+}
 
 #ifdef CONFIG_RESCTRL_FS
 int mpam_resctrl_setup(void);

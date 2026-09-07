@@ -1775,14 +1775,16 @@ static int mpam_touch_msc(struct mpam_msc *msc, int (*fn)(void *a), void *arg)
 struct mpam_write_config_arg {
 	struct mpam_msc_ris *ris;
 	struct mpam_component *comp;
-	u16 partid;
+	partid_set_t partid_set;
 };
 
 static int __write_config(void *arg)
 {
+	u16 partid;
 	struct mpam_write_config_arg *c = arg;
 
-	mpam_reprogram_ris_partid(c->ris, c->partid, &c->comp->cfg[c->partid]);
+	for_each_set_bit(partid, c->partid_set, mpam_partid_max)
+		mpam_reprogram_ris_partid(c->ris, partid, &c->comp->cfg[partid]);
 
 	return 0;
 }
@@ -1793,12 +1795,17 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 	bool reset;
 	struct mpam_msc_ris *ris;
 	struct mpam_write_config_arg arg;
+	partid_set_t partid_set __free(bitmap) = mpam_partid_set_alloc();
 
 	/*
 	 * No lock for mpam_partid_max as partid_max_published has been
 	 * set by mpam_enabled(), so the values can no longer change.
 	 */
 	mpam_assert_partid_sizes_fixed();
+
+	if (WARN_ON_ONCE(!partid_set))
+		return;
+	arg.partid_set = partid_set;
 
 	mutex_lock(&msc->cfg_lock);
 	list_for_each_entry_srcu(ris, &msc->ris, msc_list,
@@ -1815,10 +1822,10 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 		for (partid = 0; partid <= mpam_partid_max; partid++) {
 			if (!is_empty_configuration(ris, partid))
 				reset = false;
-
-			arg.partid = partid;
-			mpam_touch_msc(msc, __write_config, &arg);
 		}
+
+		bitmap_fill(arg.partid_set, mpam_partid_max);
+		mpam_touch_msc(msc, __write_config, &arg);
 		ris->in_reset_state = reset;
 
 		if (mpam_has_feature(mpam_feat_msmon_mbwu, &ris->props))
@@ -2929,24 +2936,30 @@ static bool mpam_update_config(struct mpam_config *cfg,
 	return has_changes;
 }
 
-int mpam_apply_config(struct mpam_component *comp, u16 partid,
+int mpam_apply_config(struct mpam_component *comp, partid_set_t partid_set,
 		      struct mpam_config *cfg)
 {
 	struct mpam_write_config_arg arg;
+	bool has_changes = false;
 	struct mpam_msc_ris *ris;
 	struct mpam_vmsc *vmsc;
 	struct mpam_msc *msc;
+	u16 partid;
 
 	lockdep_assert_cpus_held();
 
 	/* Don't pass in the current config! */
 	WARN_ON_ONCE(&comp->cfg[0] <= cfg && cfg <= &comp->cfg[mpam_partid_max + 1]);
 
-	if (!mpam_update_config(&comp->cfg[partid], cfg))
+	for_each_set_bit(partid, partid_set, mpam_partid_max) {
+		if (mpam_update_config(&comp->cfg[partid], cfg))
+			has_changes = true;
+	}
+	if (!has_changes)
 		return 0;
 
 	arg.comp = comp;
-	arg.partid = partid;
+	arg.partid_set = partid_set;
 
 	guard(srcu)(&mpam_srcu);
 	list_for_each_entry_srcu(vmsc, &comp->vmsc, comp_list,

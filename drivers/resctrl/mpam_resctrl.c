@@ -1430,12 +1430,12 @@ u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 			    u32 closid, enum resctrl_conf_type t, u32 cfg_val)
 {
-	int err;
 	u32 partid;
 	struct mpam_config cfg;
 	struct mpam_props *cprops;
 	struct mpam_resctrl_res *res;
 	struct mpam_resctrl_dom *dom;
+	partid_set_t partid_set __free(bitmap) = mpam_partid_set_alloc();
 
 	lockdep_assert_cpus_held();
 	lockdep_assert_irqs_enabled();
@@ -1488,16 +1488,14 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 	 * apply the same configuration to the other partid.
 	 */
 	if (mpam_resctrl_hide_cdp(r->rid)) {
-		partid = resctrl_get_config_index(closid, CDP_CODE);
-		err = mpam_apply_config(dom->ctrl_comp, partid, &cfg);
-		if (err)
-			return err;
-
-		partid = resctrl_get_config_index(closid, CDP_DATA);
-		return mpam_apply_config(dom->ctrl_comp, partid, &cfg);
+		__set_bit(resctrl_get_config_index(closid, CDP_CODE), partid_set);
+		__set_bit(resctrl_get_config_index(closid, CDP_DATA), partid_set);
+	}
+	else {
+		__set_bit(partid, partid_set);
 	}
 
-	return mpam_apply_config(dom->ctrl_comp, partid, &cfg);
+	return mpam_apply_config(dom->ctrl_comp, partid_set, &cfg);
 }
 
 int resctrl_arch_update_domains(struct rdt_resource *r, u32 closid)
