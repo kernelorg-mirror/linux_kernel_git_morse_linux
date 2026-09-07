@@ -94,7 +94,10 @@ static bool resctrl_enabled;
  */
 static bool mpam_resctrl_fake_pmg;
 static u8 mpam_resctrl_fake_pmg_bits;
+
+/* Regardless of fake_pmg, these describe extracting a PMG from an RMID */
 static u16 resctrl_pmg_max;
+static u16 resctrl_rmid2pmg_mask = 0xffff;
 
 bool resctrl_arch_alloc_capable(void)
 {
@@ -205,6 +208,23 @@ static void mpam_resctrl_monitor_sync_abmc_vals(struct rdt_resource *l3)
 	 * Continue as normal even if enabling cdp causes there to be
 	 * zero counters. This avoids giving resctrl mixed messages.
 	 */
+}
+
+static void partid_set_add_closid(u32 closid, enum resctrl_conf_type t, partid_set_t partid_set)
+{
+	int i;
+	u8 control_partid_bits, monitor_partid_bits, num_aliases = 0;
+	u32 base_partid = resctrl_get_config_index(closid, t);
+
+	if (mpam_resctrl_fake_pmg) {
+		control_partid_bits = ilog2(mpam_control_partid_max);
+		monitor_partid_bits = ilog2(mpam_monitor_partid_max);
+		num_aliases = (1ULL << (monitor_partid_bits - control_partid_bits)) - 1;
+	}
+
+	for (i = 0; i <= num_aliases; i++) {
+		__set_bit(base_partid + (i << control_partid_bits), partid_set);
+	}
 }
 
 int resctrl_arch_set_cdp_enabled(enum resctrl_res_level rid, bool enable)
@@ -469,13 +489,14 @@ static int __read_mon(struct mpam_resctrl_mon *mon, struct mpam_component *mon_c
 		      int mon_idx,
 		      enum resctrl_conf_type cdp_type, u32 closid, u32 rmid, u64 *val)
 {
+	partid_set_t partid_set __free(bitmap) = mpam_partid_set_alloc();
 	struct mon_cfg cfg;
+	u16 partid, pmg;
+	u64 _val;
+	int err;
 
 	if (!mpam_is_enabled())
 		return -EINVAL;
-
-	/* Shift closid to account for CDP */
-	closid = resctrl_get_config_index(closid, cdp_type);
 
 	if (mon_idx == USE_PRE_ALLOCATED) {
 		int mbwu_idx = resctrl_arch_rmid_idx_encode(closid, rmid);
@@ -490,12 +511,22 @@ static int __read_mon(struct mpam_resctrl_mon *mon, struct mpam_component *mon_c
 		return -EIO;
 	}
 
-	cfg = (struct mon_cfg) {
-		.mon = mon_idx,
-		.match_pmg = true,
-		.partid = closid,
-		.pmg = rmid,
-	};
+	partid_set_add_closid(closid, cdp_type, partid_set);
+	pmg = rmid & resctrl_rmid2pmg_mask;
+
+	for_each_set_bit(partid, partid_set, mpam_partid_set_size()) {
+		cfg = (struct mon_cfg) {
+			.mon = mon_idx,
+			.match_pmg = true,
+			.partid = partid,
+			.pmg = pmg,
+		};
+
+		err = mpam_msmon_read(mon_comp, &cfg, mon_type, &_val);
+		if (err)
+			return err;
+		*val += _val;
+	}
 
 	return mpam_msmon_read(mon_comp, &cfg, mon_type, val);
 }
@@ -1575,11 +1606,11 @@ int resctrl_arch_update_one(struct rdt_resource *r, struct rdt_ctrl_domain *d,
 	 * apply the same configuration to the other partid.
 	 */
 	if (mpam_resctrl_hide_cdp(r->rid)) {
-		__set_bit(resctrl_get_config_index(closid, CDP_CODE), partid_set);
-		__set_bit(resctrl_get_config_index(closid, CDP_DATA), partid_set);
+		partid_set_add_closid(closid, CDP_CODE, partid_set);
+		partid_set_add_closid(closid, CDP_DATA, partid_set);
 	}
 	else {
-		__set_bit(partid, partid_set);
+		partid_set_add_closid(closid, t, partid_set);
 	}
 
 	return mpam_apply_config(dom->ctrl_comp, partid_set, &cfg);

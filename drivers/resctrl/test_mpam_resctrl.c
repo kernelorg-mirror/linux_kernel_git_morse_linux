@@ -296,6 +296,49 @@ static void test_percent_to_max_rounding(struct kunit *test)
 	KUNIT_EXPECT_LE(test, 4 * num_rounded_up, 3 * total);
 }
 
+static void test_partid_set_aliases(struct kunit *test)
+{
+	partid_set_t partid_set __free(bitmap);
+	u32 old_mpam_control_partid_max = mpam_control_partid_max;
+	u32 old_mpam_monitor_partid_max = mpam_monitor_partid_max;
+	bool old_mpam_resctrl_fake_pmg = mpam_resctrl_fake_pmg;
+
+	mpam_control_partid_max = 64;
+	mpam_monitor_partid_max = 128;
+	partid_set = mpam_partid_set_alloc();
+	mpam_resctrl_fake_pmg = false;
+
+	bitmap_zero(partid_set, mpam_control_partid_max);
+	partid_set_add_closid(4, CDP_NONE, partid_set);
+	KUNIT_EXPECT_TRUE(test, test_bit(4, partid_set));
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_control_partid_max), 1);
+
+	partid_set_add_closid(8, CDP_NONE, partid_set);
+	KUNIT_EXPECT_TRUE(test, test_bit(4, partid_set));
+	KUNIT_EXPECT_TRUE(test, test_bit(8, partid_set));
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_control_partid_max), 2);
+
+	mpam_resctrl_fake_pmg = true;
+	bitmap_zero(partid_set, mpam_control_partid_max);
+	partid_set_add_closid(4, CDP_NONE, partid_set);
+	KUNIT_EXPECT_TRUE(test, test_bit(4, partid_set));
+	KUNIT_EXPECT_TRUE(test, test_bit(64 + 4, partid_set));
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_control_partid_max), 1);
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_monitor_partid_max), 2);
+
+	partid_set_add_closid(8, CDP_NONE, partid_set);
+	KUNIT_EXPECT_TRUE(test, test_bit(4, partid_set));
+	KUNIT_EXPECT_TRUE(test, test_bit(8, partid_set));
+	KUNIT_EXPECT_TRUE(test, test_bit(64 + 4, partid_set));
+	KUNIT_EXPECT_TRUE(test, test_bit(64 + 8, partid_set));
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_control_partid_max), 2);
+	KUNIT_EXPECT_EQ(test, bitmap_weight(partid_set, mpam_monitor_partid_max), 4);
+
+	mpam_resctrl_fake_pmg = old_mpam_resctrl_fake_pmg;
+	mpam_control_partid_max = old_mpam_control_partid_max;
+	mpam_monitor_partid_max = old_mpam_monitor_partid_max;
+}
+
 static struct kunit_case mpam_resctrl_test_cases[] = {
 	KUNIT_CASE(test_get_mba_granularity),
 	KUNIT_CASE_PARAM(test_mbw_max_to_percent, test_percent_value_gen_params),
@@ -304,6 +347,7 @@ static struct kunit_case mpam_resctrl_test_cases[] = {
 	KUNIT_CASE(test_percent_to_max_rounding),
 	KUNIT_CASE_PARAM(test_percent_max_roundtrip_stability,
 			 test_all_bwa_wd_gen_params),
+	KUNIT_CASE(test_partid_set_aliases),
 	{}
 };
 
