@@ -1546,6 +1546,18 @@ static u16 mpam_wa_t241_calc_min_from_max(struct mpam_props *props,
 	return val;
 }
 
+static bool __is_empty_configuration(struct mpam_config *cfg)
+{
+	return bitmap_empty(cfg->features, MPAM_FEATURE_LAST);
+}
+
+static bool is_empty_configuration(struct mpam_msc_ris *ris, u16 partid)
+{
+	struct mpam_config *cfg = &ris->vmsc->comp->cfg[partid];
+
+	return __is_empty_configuration(cfg);
+}
+
 /* Called via IPI. Call while holding an SRCU reference */
 static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 				      struct mpam_config *cfg)
@@ -1779,7 +1791,6 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 {
 	u16 partid;
 	bool reset;
-	struct mpam_config *cfg;
 	struct mpam_msc_ris *ris;
 	struct mpam_write_config_arg arg;
 
@@ -1802,8 +1813,7 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 		arg.ris = ris;
 		reset = true;
 		for (partid = 0; partid <= mpam_partid_max; partid++) {
-			cfg = &ris->vmsc->comp->cfg[partid];
-			if (!bitmap_empty(cfg->features, MPAM_FEATURE_LAST))
+			if (!is_empty_configuration(ris, partid))
 				reset = false;
 
 			arg.partid = partid;
