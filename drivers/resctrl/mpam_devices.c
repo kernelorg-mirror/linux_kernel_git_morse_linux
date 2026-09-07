@@ -1553,7 +1553,14 @@ static bool is_empty_configuration(struct mpam_msc_ris *ris, u16 partid)
 	return __is_empty_configuration(cfg);
 }
 
-/* Called via IPI. Call while holding an SRCU reference */
+/*
+ * Called via IPI. Call while holding an SRCU reference
+ * When narrowing is supported by the ris, the partid will be idmapped
+ * unless an intpartid is supplied
+ * in the configuration. An empty configuration will configure the
+ * reqPARTID->intPARTID to discard the higher bits, (assuming they are both
+ * powers of 2).
+ */
 static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 				      struct mpam_config *cfg)
 {
@@ -1561,19 +1568,29 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 	struct mpam_msc *msc = ris->vmsc->msc;
 	struct mpam_props *rprops = &ris->props;
 
-	mutex_lock(&msc->part_sel_lock);
+	guard(mutex)(&msc->part_sel_lock);
 	__mpam_part_sel(ris->ris_idx, partid, msc);
 
 	if (mpam_has_feature(mpam_feat_partid_nrw, rprops)) {
+		u16 int_partid = partid;
+
+		if (mpam_has_feature(mpam_feat_partid_nrw, cfg))
+			int_partid = cfg->int_partid;
+		else if (__is_empty_configuration(cfg))
+			int_partid = partid % ris->props.max_control_partid;
+
+		if (WARN_ON_ONCE(int_partid > ris->props.max_control_partid))
+			return;
+
 		/* Update the intpartid mapping */
 		mpam_write_partsel_reg(msc, INTPARTID,
-				       MPAMCFG_INTPARTID_INTERNAL | partid);
+				       MPAMCFG_INTPARTID_INTERNAL | int_partid);
 
 		/*
 		 * Then switch to the 'internal' partid to update the
 		 * configuration.
 		 */
-		__mpam_intpart_sel(ris->ris_idx, partid, msc);
+		__mpam_intpart_sel(ris->ris_idx, int_partid, msc);
 	}
 
 	if (mpam_has_feature(mpam_feat_cpor_part, rprops)) {
@@ -1648,8 +1665,6 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 	}
 
 	mpam_quirk_post_config_change(ris, partid, cfg);
-
-	mutex_unlock(&msc->part_sel_lock);
 }
 
 /* Call with msc cfg_lock held */
@@ -2965,6 +2980,7 @@ static bool mpam_update_config(struct mpam_config *cfg,
 	maybe_update_config(cfg, mpam_feat_cpor_part, newcfg, cpbm, has_changes);
 	maybe_update_config(cfg, mpam_feat_mbw_part, newcfg, mbw_pbm, has_changes);
 	maybe_update_config(cfg, mpam_feat_mbw_max, newcfg, mbw_max, has_changes);
+	maybe_update_config(cfg, mpam_feat_partid_nrw, newcfg, int_partid, has_changes);
 
 	return has_changes;
 }
