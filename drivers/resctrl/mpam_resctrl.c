@@ -336,7 +336,7 @@ void resctrl_arch_sched_in(struct task_struct *tsk)
 void resctrl_arch_set_cpu_default_closid_rmid(int cpu, u32 closid, u32 rmid)
 {
 	WARN_ON_ONCE(closid > U16_MAX);
-	WARN_ON_ONCE(rmid > U8_MAX);
+	WARN_ON_ONCE(rmid > resctrl_pmg_max);
 
 	if (!cdp_enabled) {
 		mpam_set_cpu_defaults(cpu, closid, closid, rmid, rmid);
@@ -369,7 +369,7 @@ void resctrl_arch_sync_cpu_closid_rmid(void *info)
 void resctrl_arch_set_closid_rmid(struct task_struct *tsk, u32 closid, u32 rmid)
 {
 	WARN_ON_ONCE(closid > U16_MAX);
-	WARN_ON_ONCE(rmid > U8_MAX);
+	WARN_ON_ONCE(rmid > resctrl_pmg_max);
 
 	if (!cdp_enabled) {
 		mpam_set_task_partid_pmg(tsk, closid, closid, rmid, rmid);
