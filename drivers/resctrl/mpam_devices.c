@@ -2386,6 +2386,19 @@ static void mpam_enable_init_class_features(struct mpam_class *class)
 	class->props = vmsc->props;
 }
 
+/*
+ * Copy the first ris's properties and features to the vmsc. __props_mismatch()
+ * adds any missing features from other aliasing RIS. It is not possible to
+ * have a vmsc with no ris.
+ */
+static void mpam_enable_init_vmsc_features(struct mpam_vmsc *vmsc)
+{
+	struct mpam_msc_ris *ris;
+
+	ris = list_first_entry(&vmsc->ris, struct mpam_msc_ris, vmsc_list);
+	vmsc->props = ris->props;
+}
+
 static void mpam_enable_merge_vmsc_features(struct mpam_component *comp)
 {
 	struct mpam_vmsc *vmsc;
@@ -2393,6 +2406,16 @@ static void mpam_enable_merge_vmsc_features(struct mpam_component *comp)
 	struct mpam_class *class = comp->class;
 
 	list_for_each_entry(vmsc, &comp->vmsc, comp_list) {
+		/*
+		 * VMSC are merged as aliases, this expects that none of the
+		 * properties overlap, and if they do - a safe value is chosen.
+		 * The PARTID/PMG values implicitly always exist, so a sane
+		 * value needs to be set in the vmsc before the first ris is
+		 * merged, otherwise the parent '0' propagates as the safe
+		 * value.
+		 */
+		mpam_enable_init_vmsc_features(vmsc);
+
 		list_for_each_entry(ris, &vmsc->ris, vmsc_list) {
 			__vmsc_props_mismatch(vmsc, ris);
 			class->nrdy_usec = max(class->nrdy_usec,
